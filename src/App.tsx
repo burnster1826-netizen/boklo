@@ -490,7 +490,7 @@ export default function App() {
   }));
 
   return (
-    <div id="bookloop-app-root" className="min-h-screen md:h-screen md:overflow-hidden bg-nocturnal-bg text-on-surface flex flex-col md:flex-row relative overflow-x-hidden antialiased">
+    <div id="bookloop-app-root" className="min-h-screen md:min-h-screen md:max-h-screen md:h-screen md:overflow-hidden bg-nocturnal-bg text-on-surface flex flex-col md:flex-row relative overflow-x-hidden antialiased">
       
       {/* DESKTOP STICKY SIDEBAR RAIL (Visible on md and up) */}
       <aside className="hidden md:flex md:flex-col md:w-64 border-r border-nocturnal-border/30 bg-nocturnal-surface-low/55 p-6 gap-6 h-screen sticky top-0 select-none z-40 shrink-0">
