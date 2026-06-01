@@ -256,12 +256,15 @@ export default function DiscoverScreen({
                   <>
                     {/* Click outside to close */}
                     <div 
-                      className="fixed inset-0 z-40" 
+                      className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none" 
                       onClick={() => setIsFilterPanelOpen(false)}
                     />
                     
-                    {/* Filters Dropdown Card (Absolute Overlay) */}
-                    <div className="absolute right-0 mt-2.5 w-72 sm:w-80 rounded-2xl bg-[#09070F] border border-nocturnal-border/80 shadow-2xl p-5 z-50 space-y-4">
+                    {/* Filters Dropdown Card (Absolute Overlay on Desktop, Swipe-up Bottom Drawer on Mobile) */}
+                    <div className="fixed bottom-0 left-0 right-0 md:absolute md:right-0 md:mt-2.5 md:bottom-auto md:left-auto w-full md:w-80 rounded-t-3xl md:rounded-2xl bg-[#09070F] border-t md:border border-nocturnal-border/80 shadow-2xl p-5 z-55 space-y-4 max-h-[85vh] overflow-y-auto md:max-h-none">
+                      {/* Drag indicator handle on mobile devices strictly */}
+                      <div className="w-12 h-1 bg-nocturnal-border/60 rounded-full mx-auto mb-1 md:hidden" />
+
                       <div className="flex items-center justify-between border-b border-nocturnal-border/15 pb-2.5">
                         <span className="text-xs font-sans font-bold text-on-surface uppercase tracking-wider">
                           BookLoop Filters
@@ -281,12 +284,12 @@ export default function DiscoverScreen({
                         <p className="text-[10px] font-sans font-bold text-nocturnal-outline uppercase tracking-wider">
                           1. Max Distance (Buyer preference)
                         </p>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {[5, 10, 25, 50].map((dist) => {
+                        <div className="grid grid-cols-5 gap-1">
+                          {[5, 10, 25, 50, Infinity].map((dist) => {
                             const isDistSelected = filterDistance === dist;
                             return (
                               <button
-                                key={dist}
+                                key={dist.toString()}
                                 type="button"
                                 onClick={() => onUpdateDistanceFilter?.(dist)}
                                 className={`py-2 rounded-lg border text-center font-sans text-xs font-bold transition-all duration-150 cursor-pointer ${
@@ -295,7 +298,7 @@ export default function DiscoverScreen({
                                     : 'bg-[#151221] border-[#2a2444] text-nocturnal-outline hover:text-on-surface'
                                 }`}
                               >
-                                {dist} km
+                                {dist === Infinity ? '∞' : `${dist} km`}
                               </button>
                             );
                           })}
@@ -479,7 +482,7 @@ export default function DiscoverScreen({
           Showing <span className="text-on-surface font-semibold">{sortedAndFilteredBooks.length}</span> matching {sortedAndFilteredBooks.length === 1 ? 'book' : 'books'}
         </div>
         <div>
-          Radius: <span className="text-on-surface font-semibold">{user.location} ({filterDistance} km)</span>
+          Radius: <span className="text-on-surface font-semibold">{user.location} ({filterDistance === Infinity ? '∞' : `${filterDistance} km`})</span>
         </div>
       </div>
 
@@ -494,7 +497,7 @@ export default function DiscoverScreen({
             <div className="space-y-1.5 max-w-sm mx-auto">
               <p className="text-on-surface font-sans font-semibold text-base">No books fit this loop search.</p>
               <p className="text-xs text-nocturnal-outline font-sans">
-                No matching results were found for <strong className="text-primary-lavender">"{searchQuery || activeCategory}"</strong> within {filterDistance} km of {user.location}.
+                No matching results were found for <strong className="text-primary-lavender">"{searchQuery || activeCategory}"</strong> {filterDistance === Infinity ? 'anywhere' : `within ${filterDistance} km of ${user.location}`}.
               </p>
             </div>
 

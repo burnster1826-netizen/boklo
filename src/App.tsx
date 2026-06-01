@@ -504,7 +504,7 @@ export default function App() {
           >
             <MapPin className="w-3.5 h-3.5 text-primary-lavender shrink-0" />
             <span className="truncate max-w-[130px]">{currentUser.location}</span>
-            <span className="shrink-0">({filterDistance} km)</span>
+            <span className="shrink-0">({filterDistance === Infinity ? '∞' : `${filterDistance} km`})</span>
             <ChevronDown className="w-3.5 h-3.5 text-primary-lavender shrink-0" />
           </button>
         </div>
@@ -617,7 +617,7 @@ export default function App() {
         
         {/* MOBILE SCREEN BAR ONLY (md:hidden) */}
         {!selectedBook && !activeChatId && (
-          <header className="md:hidden fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-4 h-16 bg-nocturnal-surface border-b border-nocturnal-border/40 select-none">
+          <header className="md:hidden fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-4 h-16 bg-nocturnal-surface/85 backdrop-blur-md border-b border-nocturnal-border/30 select-none">
             <div className="flex flex-col">
               <h1 className="font-serif text-xl font-extrabold text-primary-lavender bg-clip-text">
                 BookLoop
@@ -628,7 +628,7 @@ export default function App() {
               >
                 <MapPin className="w-3 h-3 text-primary-lavender" />
                 <span className="truncate max-w-[150px]">{currentUser.location}</span>
-                <span className="shrink-0">({filterDistance} km)</span>
+                <span className="shrink-0">({filterDistance === Infinity ? '∞' : `${filterDistance} km`})</span>
                 <ChevronDown className="w-3 h-3 text-primary-lavender" />
               </button>
             </div>
@@ -739,7 +739,7 @@ export default function App() {
         </main>
 
         {/* MOBILE NAVIGATION BAR ONLY (md:hidden) */}
-        {!activeChatId && (
+        {!activeChatId && !selectedBook && (
           <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-around items-center px-4 pt-2.5 pb-6 bg-nocturnal-surface-low border-t border-nocturnal-border/40 select-none rounded-t-xl shadow-2xl">
             {/* Discover Screen Tab */}
             <button
@@ -862,20 +862,22 @@ export default function App() {
 
               {/* Distances filter circle bento choices */}
               <div className="grid grid-cols-2 gap-3.5">
-                {([5, 10, 25, 50] as const).map((dist) => {
+                {([5, 10, 25, 50, Infinity] as const).map((dist) => {
                   const isSelected = filterDistance === dist;
                   return (
                     <button
-                      key={dist}
+                      key={dist.toString()}
                       type="button"
                       onClick={() => setFilterDistance(dist)}
                       className={`py-4 rounded-xl border font-sans text-xs font-bold transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 ${
+                        dist === Infinity ? 'col-span-2' : ''
+                      } ${
                         isSelected
                           ? 'bg-primary-lavender/15 border-primary-lavender text-primary-lavender ring-1 ring-primary-lavender/30 shadow'
                           : 'bg-nocturnal-surface-low border-nocturnal-border/60 text-on-surface hover:border-primary-lavender/30'
                       }`}
                     >
-                      {dist} km {isSelected && <Check className="w-4 h-4 text-primary-lavender shrink-0" />}
+                      {dist === Infinity ? '∞ (Infinity)' : `${dist} km`} {isSelected && <Check className="w-4 h-4 text-primary-lavender shrink-0" />}
                     </button>
                   );
                 })}

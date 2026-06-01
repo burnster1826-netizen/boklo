@@ -1,5 +1,5 @@
 {
-  "name": "BookLoop",
+  "name": "BookLoop: Resale and Exchange",
   "description": "An India-based community book exchange and listing platform for avid readers. Find and swap books locally.",
   "requestFramePermissions": [
     "geolocation"
