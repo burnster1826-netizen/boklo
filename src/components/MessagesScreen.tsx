@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { ChatSession, Book, Message } from '../types';
-import { Send, MapPin, Plus, ArrowLeft, MoreVertical, BookOpen, Circle, Landmark, Camera, Image, X, FileImage } from 'lucide-react';
+import { Send, MapPin, Plus, ArrowLeft, MoreVertical, BookOpen, Circle, Landmark, Camera, Image, X, FileImage, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 
@@ -10,18 +10,21 @@ interface MessagesScreenProps {
   onSendMessage: (chatId: string, text: string, image?: string) => void;
   onSelectChat: (chatId: string | null) => void;
   activeChatId: string | null;
+  onDeleteChat?: (chatId: string) => void;
 }
 
 export default function MessagesScreen({
   chats,
   onSendMessage,
   onSelectChat,
-  activeChatId
+  activeChatId,
+  onDeleteChat
 }: MessagesScreenProps) {
   const [typedMessage, setTypedMessage] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [isAttachmentOpen, setIsAttachmentOpen] = useState(false);
+  const [confirmDeleteChatId, setConfirmDeleteChatId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentChat = chats.find(c => c.id === activeChatId);
@@ -82,7 +85,7 @@ export default function MessagesScreen({
                     onSelectChat(chat.id);
                     chat.participant.unreadCount = 0;
                   }}
-                  className={`flex items-center gap-3 p-3.5 bg-nocturnal-surface-low border rounded-xl hover:bg-nocturnal-surface-high cursor-pointer transition-all duration-150 ${
+                  className={`flex items-center gap-3 p-3.5 bg-nocturnal-surface-low border rounded-xl hover:bg-nocturnal-surface-high cursor-pointer transition-all duration-150 relative group ${
                     isSelected
                       ? 'border-primary-lavender bg-primary-lavender/[0.04]'
                       : hasUnread 
@@ -90,6 +93,21 @@ export default function MessagesScreen({
                       : 'border-nocturnal-border/40 opacity-90'
                   }`}
                 >
+                  {/* Premium Hover Delete Button */}
+                  {onDeleteChat && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDeleteChatId(chat.id);
+                      }}
+                      className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 focus:opacity-100 text-nocturnal-outline hover:text-accent-terracotta bg-nocturnal-surface-low/90 border border-nocturnal-border hover:border-accent-terracotta/40 p-1.5 rounded-lg shadow-md transition-all duration-150 cursor-pointer z-10"
+                      title="Delete Chat"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
                   <div className="relative shrink-0">
                     <img
                       src={chat.participant.avatar || null}
@@ -103,12 +121,14 @@ export default function MessagesScreen({
 
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-center mb-0.5">
-                      <span className="font-serif text-[13px] font-bold text-on-surface truncate">
+                      <span className="font-serif text-[13px] font-bold text-on-surface truncate pr-6">
                         {chat.participant.name}
                       </span>
-                      <span className="font-sans text-[9px] text-nocturnal-outline">
-                        {latestMsg ? latestMsg.timestamp.split(', ')[1] || latestMsg.timestamp : ''}
-                      </span>
+                      <div className="flex items-center gap-1.5 select-none shrink-0">
+                        <span className="font-sans text-[9px] text-nocturnal-outline group-hover:opacity-0 transition-opacity duration-150">
+                          {latestMsg ? latestMsg.timestamp.split(', ')[1] || latestMsg.timestamp : ''}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-1.5">
@@ -158,22 +178,36 @@ export default function MessagesScreen({
                     </div>
                   </div>
 
-                  {/* Curated volume mini-badge summary */}
-                  <div className="flex items-center gap-2 bg-nocturnal-surface-low border border-nocturnal-border/30 rounded-lg p-1 px-2.5 max-w-[220px]">
-                    {currentChat.book.cover && (
-                      <img
-                        src={currentChat.book.cover || null}
-                        alt="Book Mini"
-                        className="w-6 h-8 rounded-sm object-cover"
-                      />
+                  {/* Curated volume mini-badge summary and actions */}
+                  <div className="flex items-center gap-3">
+                    {onDeleteChat && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteChatId(currentChat.id)}
+                        className="h-9 px-3.5 bg-transparent hover:bg-red-500/10 border border-nocturnal-border hover:border-red-500/30 text-nocturnal-outline hover:text-red-400 rounded-xl flex items-center gap-1.5 transition-all duration-150 cursor-pointer text-xs font-sans font-bold"
+                        title="Delete conversation history"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete Chat</span>
+                      </button>
                     )}
-                    <div className="min-w-0">
-                      <p className="text-[10px] text-on-surface font-bold truncate leading-snug">
-                        {currentChat.book.title}
-                      </p>
-                      <p className="text-[9.5px] text-primary-lavender font-extrabold font-sans mt-0.5 leading-none">
-                        {currentChat.book.price === 0 ? "Free" : `₹${currentChat.book.price}`}
-                      </p>
+
+                    <div className="flex items-center gap-2 bg-nocturnal-surface-low border border-nocturnal-border/30 rounded-lg p-1 px-2.5 max-w-[220px]">
+                      {currentChat.book.cover && (
+                        <img
+                          src={currentChat.book.cover || null}
+                          alt="Book Mini"
+                          className="w-6 h-8 rounded-sm object-cover"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-on-surface font-bold truncate leading-snug">
+                          {currentChat.book.title}
+                        </p>
+                        <p className="text-[9.5px] text-primary-lavender font-extrabold font-sans mt-0.5 leading-none">
+                          {currentChat.book.price === 0 ? "Free" : `₹${currentChat.book.price}`}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -420,9 +454,24 @@ export default function MessagesScreen({
                           <span className="font-serif text-[15px] font-bold text-on-surface">
                             {chat.participant.name}
                           </span>
-                          <span className={`font-sans text-[10px] ${hasUnread ? 'text-primary-lavender font-semibold' : 'text-nocturnal-outline'}`}>
-                            {latestMsg ? latestMsg.timestamp.split(', ')[1] || latestMsg.timestamp : ''}
-                          </span>
+                          <div className="flex items-center gap-2 relative">
+                            <span className={`font-sans text-[10px] ${hasUnread ? 'text-primary-lavender font-semibold' : 'text-nocturnal-outline'} mr-1`}>
+                              {latestMsg ? latestMsg.timestamp.split(', ')[1] || latestMsg.timestamp : ''}
+                            </span>
+                            {onDeleteChat && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConfirmDeleteChatId(chat.id);
+                                }}
+                                className="w-7 h-7 flex items-center justify-center text-nocturnal-outline hover:text-accent-terracotta bg-nocturnal-surface border border-nocturnal-border hover:border-accent-terracotta/40 hover:bg-accent-terracotta/10 rounded-lg transition-all cursor-pointer shrink-0"
+                                title="Delete Chat"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -486,21 +535,34 @@ export default function MessagesScreen({
                 </div>
 
                 {/* Book Mini details */}
-                <div className="flex items-center gap-1.5 bg-nocturnal-surface-low/60 border border-nocturnal-border/40 rounded-lg p-1 pr-3 max-w-[150px]">
-                  {currentChat?.book.cover && (
-                    <img
-                      src={currentChat.book.cover || null}
-                      alt="Cover Mini"
-                      className="w-6 h-8 rounded-sm object-cover"
-                    />
+                <div className="flex items-center gap-2 shrink-0">
+                  {onDeleteChat && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteChatId(currentChat?.id || null)}
+                      className="w-9 h-9 flex items-center justify-center bg-transparent border border-nocturnal-border hover:border-red-500/40 text-nocturnal-outline hover:text-red-400 hover:bg-red-500/10 rounded-full transition-all duration-150 cursor-pointer"
+                      title="Delete conversation history"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   )}
-                  <div className="min-w-0">
-                    <p className="text-[10px] text-on-surface font-medium truncate font-sans">
-                      {currentChat?.book.title}
-                    </p>
-                    <p className="text-[9px] text-primary-lavender font-bold font-sans">
-                      {currentChat?.book.price === 0 ? "Free" : `₹${currentChat?.book.price}`}
-                    </p>
+
+                  <div className="flex items-center gap-1.5 bg-nocturnal-surface-low/60 border border-nocturnal-border/40 rounded-lg p-1 pr-3 max-w-[130px]">
+                    {currentChat?.book.cover && (
+                      <img
+                        src={currentChat.book.cover || null}
+                        alt="Cover Mini"
+                        className="w-6 h-8 rounded-sm object-cover"
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-on-surface font-medium truncate font-sans">
+                        {currentChat?.book.title}
+                      </p>
+                      <p className="text-[9px] text-primary-lavender font-bold font-sans">
+                        {currentChat?.book.price === 0 ? "Free" : `₹${currentChat?.book.price}`}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -703,6 +765,66 @@ export default function MessagesScreen({
             <p className="text-white/70 text-xs font-sans mt-4 bg-black/40 p-2 rounded-lg backdrop-blur-md">
               Book Detail Photo • Click outer black area to return
             </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Custom Delete Chat Confirmation Modal */}
+      <AnimatePresence>
+        {confirmDeleteChatId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[1000] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="w-full max-w-sm rounded-2xl bg-nocturnal-surface border border-accent-terracotta/25 shadow-[0_0_50px_rgba(255,181,156,0.08)] p-6 text-on-surface relative overflow-hidden"
+            >
+              {/* Top soft glowing indicator line */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-accent-terracotta via-red-400 to-accent-terracotta" />
+
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-100/90 shrink-0">
+                  <Trash2 className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-sm font-bold text-on-surface leading-none">Delete Conversation?</h3>
+                  <p className="font-sans text-[10px] text-nocturnal-outline mt-1 font-semibold uppercase tracking-wider">
+                    This step is permanent
+                  </p>
+                </div>
+              </div>
+
+              <p className="font-sans text-xs text-nocturnal-outline mt-4 leading-relaxed bg-nocturnal-surface-low p-3.5 rounded-xl border border-nocturnal-border/10">
+                Are you sure you want to delete all messages and history from this chat session? This action is permanent and cannot be undone.
+              </p>
+
+              <div className="flex items-center gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteChatId(null)}
+                  className="flex-1 h-11 rounded-xl bg-nocturnal-surface-low border border-nocturnal-border/60 text-xs font-sans font-bold text-nocturnal-outline hover:text-on-surface hover:bg-nocturnal-surface-high transition-all cursor-pointer"
+                >
+                  Keep Chat
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onDeleteChat) {
+                      onDeleteChat(confirmDeleteChatId);
+                    }
+                    setConfirmDeleteChatId(null);
+                  }}
+                  className="flex-1 h-11 rounded-xl bg-gradient-to-r from-red-500 to-accent-terracotta-dark hover:from-red-400 hover:to-accent-terracotta text-xs font-sans font-black text-on-surface shadow-lg shadow-red-500/10 transition-all cursor-pointer hover:shadow-red-500/20"
+                >
+                  Delete Forever
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -101,32 +101,47 @@ export default function App() {
 
         // 3. Subscribe to Chats matching participant UIDs
         const chatsQuery = query(collection(db, 'chats'), where('participantIds', 'array-contains', user.uid));
-        unsubChats = onSnapshot(chatsQuery, (snap) => {
+        unsubChats = onSnapshot(chatsQuery, async (snap) => {
           if (snap.empty) {
-            INITIAL_CHATS.forEach(async (chat) => {
-              const uniqueChatId = `${user.uid}_${chat.id}`;
-              const seedChat = {
-                id: uniqueChatId,
-                participantIds: [user.uid, chat.participant.id],
-                participant: chat.participant,
-                book: chat.book
-              };
-              await setDoc(doc(db, 'chats', uniqueChatId), seedChat);
-
-              // Seed messages subcollection for this chat
-              for (const msg of chat.messages) {
-                const seedMsg = {
-                  id: msg.id,
-                  senderId: msg.sender === 'me' ? user.uid : chat.participant.id,
-                  text: msg.text,
-                  timestamp: msg.timestamp,
-                  createdAt: new Date(Date.now() - 100000).toISOString(),
-                  isMeetingPoint: msg.isMeetingPoint || false,
-                  meetingLocation: msg.meetingLocation || ""
-                };
-                await setDoc(doc(db, 'chats', uniqueChatId, 'messages', msg.id), seedMsg);
+            try {
+              const seedStatusRef = doc(db, 'chats_seeded', user.uid);
+              const seedStatusSnap = await getDoc(seedStatusRef);
+              if (seedStatusSnap.exists() && seedStatusSnap.data()?.seeded) {
+                // Chats were already seeded and the user deleted them all. Keep it empty.
+                setChats([]);
+                return;
               }
-            });
+
+              // Update the seed status document first to mark as seeded: true
+              await setDoc(seedStatusRef, { seeded: true });
+
+              INITIAL_CHATS.forEach(async (chat) => {
+                const uniqueChatId = `${user.uid}_${chat.id}`;
+                const seedChat = {
+                  id: uniqueChatId,
+                  participantIds: [user.uid, chat.participant.id],
+                  participant: chat.participant,
+                  book: chat.book
+                };
+                await setDoc(doc(db, 'chats', uniqueChatId), seedChat);
+
+                // Seed messages subcollection for this chat
+                for (const msg of chat.messages) {
+                  const seedMsg = {
+                    id: msg.id,
+                    senderId: msg.sender === 'me' ? user.uid : chat.participant.id,
+                    text: msg.text,
+                    timestamp: msg.timestamp,
+                    createdAt: new Date(Date.now() - 100000).toISOString(),
+                    isMeetingPoint: msg.isMeetingPoint || false,
+                    meetingLocation: msg.meetingLocation || ""
+                  };
+                  await setDoc(doc(db, 'chats', uniqueChatId, 'messages', msg.id), seedMsg);
+                }
+              });
+            } catch (err) {
+              console.error("Error checking or seeding chats:", err);
+            }
           } else {
             const chatsList: ChatSession[] = [];
             snap.forEach((d) => {
@@ -406,6 +421,20 @@ export default function App() {
       return `The pages are indeed pristine. It is priced as listed, or I can offer a small discount if you pick up multiple books!`;
     }
     return `I can't wait to hand over this book. Let's exchange details at our meeting point. See you there soon.`;
+  };
+
+  const handleDeleteChat = async (chatId: string) => {
+    try {
+      if (activeChatId === chatId) {
+        setActiveChatId(null);
+      }
+      if (auth.currentUser) {
+        await setDoc(doc(db, 'chats_seeded', auth.currentUser.uid), { seeded: true });
+      }
+      await deleteDoc(doc(db, 'chats', chatId));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `chats/${chatId}`);
+    }
   };
 
   // Message Seller routing logic
@@ -709,6 +738,7 @@ export default function App() {
                     onSendMessage={handleSendMessage}
                     onSelectChat={setActiveChatId}
                     activeChatId={activeChatId}
+                    onDeleteChat={handleDeleteChat}
                   />
                 )}
 

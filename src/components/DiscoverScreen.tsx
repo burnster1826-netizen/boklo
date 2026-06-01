@@ -13,11 +13,11 @@ interface DiscoverScreenProps {
   filterDistance: number;
 }
 
-const CATEGORIES = ["All", "Free", "Fiction", "Sci-Fi", "Philosophy", "Poetry", "Mystery", "Non-Fiction", "School Book"];
+const CATEGORIES = ["All", "Donations", "Fiction", "Sci-Fi", "Philosophy", "Poetry", "Mystery", "Non-Fiction", "School Book"];
 
 const POPULAR_PRESETS = [
   { label: '✨ Like New', query: 'Like New' },
-  { label: '🎁 Free Loop', query: 'Free' },
+  { label: '🎁 Donations', query: 'Free' },
   { label: '🧠 Philosophy', query: 'Philosophy' },
   { label: '💸 Budget (< ₹250)', query: 'budget' },
   { label: '📖 Fiction', query: 'Fiction' }
@@ -95,7 +95,7 @@ export default function DiscoverScreen({
       // 2. Tab/Category Filter
       const matchesCategory = 
         activeCategory === 'All' || 
-        (activeCategory === 'Free' ? book.price === 0 : book.category === activeCategory);
+        (activeCategory === 'Donations' ? book.price === 0 : book.category === activeCategory);
 
       // 3. School Book subcategory levels
       const matchesSubcategory = 
@@ -345,7 +345,7 @@ export default function DiscoverScreen({
                         
                         <div className="space-y-2.5">
                           <label className="flex items-center justify-between text-xs font-sans text-nocturnal-muted cursor-pointer select-none">
-                            <span>Free books only</span>
+                            <span>Donations & Free books</span>
                             <input
                               type="checkbox"
                               checked={onlyFree}

@@ -111,7 +111,7 @@ export default function ListBookScreen({ user, onPostListing, onLocationUpdate }
       author: author.trim(),
       category,
       subcategory: category === 'School Book' ? subcategory : null,
-      price: parseFloat(price) || 0,
+      price: parseInt(price, 10) || 0,
       condition,
       conditionDetails: conditionDetails.trim() || "Pristine copy looking for a good home.",
       location: manualLoc.trim() || user.location,
@@ -274,19 +274,37 @@ export default function ListBookScreen({ user, onPostListing, onLocationUpdate }
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-nocturnal-outline ml-1">
-              Price
-            </label>
+            <div className="flex justify-between items-center ml-1">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-nocturnal-outline">
+                Price
+              </label>
+              <button
+                type="button"
+                onClick={() => setPrice(price === '0' ? '' : '0')}
+                className={`text-[10px] sm:text-xs font-sans font-extrabold px-3 py-0.5 rounded-full border transition-all duration-150 cursor-pointer flex items-center gap-1 ${
+                  price === '0'
+                    ? 'bg-primary-lavender/20 border-primary-lavender text-primary-lavender'
+                    : 'bg-nocturnal-surface-high border-nocturnal-border text-nocturnal-outline hover:text-on-surface'
+                }`}
+              >
+                <span>🎁 List as Donation (Free)</span>
+              </button>
+            </div>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-lavender font-bold text-sm">
                 ₹
               </span>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 required
                 value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="0.00"
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                  setPrice(cleaned);
+                }}
+                placeholder="0"
                 className="w-full h-12 pl-8 pr-4 bg-nocturnal-surface-low border border-nocturnal-border rounded-xl text-on-surface font-sans text-sm placeholder-nocturnal-outline outline-none focus:border-primary-lavender focus:ring-1 focus:ring-primary-lavender/30 transition-all duration-150 font-bold"
               />
             </div>

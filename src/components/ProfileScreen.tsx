@@ -419,6 +419,12 @@ export default function ProfileScreen({
             >
               <Edit3 className="w-4 h-4 fill-primary-lavender-dark" /> Edit Profile
             </button>
+            <button 
+              onClick={() => setIsDonationModalOpen(true)}
+              className="w-full h-12 bg-emerald-500 hover:bg-emerald-400 text-nocturnal-bg font-sans font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+            >
+              <Heart className="w-4 h-4 fill-nocturnal-bg" /> Donate to BookLoop
+            </button>
           </div>
         </div>
 
