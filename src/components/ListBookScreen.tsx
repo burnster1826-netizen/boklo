@@ -372,7 +372,7 @@ export default function ListBookScreen({ user, onPostListing, onLocationUpdate }
                 Listing from {manualLoc}
               </p>
               <p className="text-[10px] text-nocturnal-outline font-sans leading-none mt-1">
-                Visible to readers within 5 km
+                Visible based on buyer's preferred distance setting
               </p>
             </div>
             

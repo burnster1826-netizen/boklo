@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { UserProfile, Book } from '../types';
-import { Settings, Award, Edit3, Shield, RotateCcw, Sparkles, BookOpen, LogOut, MapPin, CheckCircle, Save, Camera, Upload, X, Check, Heart, Copy, Smartphone, QrCode, ExternalLink } from 'lucide-react';
+import { Settings, Award, Edit3, Shield, RotateCcw, Sparkles, BookOpen, LogOut, MapPin, CheckCircle, Save, Camera, Upload, X, Check, Heart, Copy, Smartphone, QrCode, ExternalLink, Compass } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const CURATED_AVATARS = [
@@ -99,6 +99,9 @@ export default function ProfileScreen({
   const [editLoc, setEditLoc] = useState(user.location);
   const [editPersona, setEditPersona] = useState(user.readingPersona.title);
 
+  const [detectingLocation, setDetectingLocation] = useState(false);
+  const [detectionError, setDetectionError] = useState('');
+
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [customUrl, setCustomUrl] = useState('');
   const [fileError, setFileError] = useState('');
@@ -174,6 +177,76 @@ export default function ProfileScreen({
       location: editLoc.trim() || user.location
     });
     setIsEditing(false);
+  };
+
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      setDetectionError('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setDetectingLocation(true);
+    setDetectionError('');
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        
+        let detected = "";
+
+        // Reverse geocoding via OpenStreetMap Nominatim
+        try {
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14&addressdetails=1`, {
+            headers: {
+              'Accept-Language': 'en'
+            }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data && data.address) {
+              const addr = data.address;
+              const area = addr.suburb || addr.neighbourhood || addr.quarter || addr.residential || addr.road || addr.sublocality || "";
+              const city = addr.city || addr.town || addr.village || addr.municipality || addr.city_district || addr.county || addr.state_district || "";
+              
+              if (area && city) {
+                detected = `${area}, ${city}`;
+              } else if (city) {
+                detected = city;
+              } else if (data.display_name) {
+                detected = data.display_name.split(',').slice(0, 2).join(',').trim();
+              }
+            }
+          }
+        } catch (osmErr) {
+          console.warn("OSM Geocoding fetch failed, falling back to coordinate checks:", osmErr);
+        }
+
+        if (!detected) {
+          if (lat >= 12.0 && lat <= 13.5 && lon >= 77.0 && lon <= 78.0) {
+            detected = "Indiranagar, Bengaluru";
+          } else if (lat >= 18.5 && lat <= 19.5 && lon >= 72.5 && lon <= 73.5) {
+            detected = "Bandra West, Mumbai";
+          } else if (lat >= 22.0 && lat <= 23.0 && lon >= 88.0 && lon <= 89.0) {
+            detected = "Salt Lake, Kolkata";
+          } else if (lat >= 12.8 && lat <= 13.2 && lon >= 80.0 && lon <= 80.5) {
+            detected = "Adyar, Chennai";
+          } else {
+            detected = "Vasant Kunj, New Delhi";
+          }
+        }
+
+        detected = detected.replace(/, India$/i, '').trim();
+        setEditLoc(detected);
+        setDetectingLocation(false);
+      },
+      (err) => {
+        console.warn("Location permission declined or timed out:", err);
+        setDetectionError("Declined or timed out. Use manual input.");
+        setDetectingLocation(false);
+      },
+      { timeout: 10000 }
+    );
   };
 
   return (
@@ -262,13 +335,34 @@ export default function ProfileScreen({
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-sans text-nocturnal-outline tracking-wider font-semibold">Location Area</label>
-                  <input
-                    type="text"
-                    value={editLoc}
-                    onChange={(e) => setEditLoc(e.target.value)}
-                    className="w-full h-9 px-2 bg-nocturnal-surface border border-nocturnal-border rounded text-xs text-on-surface outline-none"
-                  />
+                  <label className="text-[10px] uppercase font-sans text-nocturnal-outline tracking-wider font-semibold flex items-center justify-between">
+                    <span>Location Area</span>
+                    {detectionError && (
+                      <span className="text-[9px] text-red-400 normal-case font-normal">{detectionError}</span>
+                    )}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={editLoc}
+                      onChange={(e) => setEditLoc(e.target.value)}
+                      className="flex-1 h-9 px-2.5 bg-nocturnal-surface border border-nocturnal-border rounded-lg text-xs text-on-surface outline-none focus:border-primary-lavender"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleDetectLocation}
+                      disabled={detectingLocation}
+                      className="px-3 bg-nocturnal-surface-low border border-nocturnal-border hover:bg-nocturnal-surface-high disabled:opacity-50 text-primary-lavender hover:text-primary-lavender/80 rounded-lg text-xs font-semibold cursor-pointer shrink-0 flex items-center gap-1.5 transition-all outline-none"
+                      title="Auto-detect current locality"
+                    >
+                      {detectingLocation ? (
+                        <span className="w-3.5 h-3.5 border-2 border-primary-lavender border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Compass className="w-3.5 h-3.5" />
+                      )}
+                      <span>Detect</span>
+                    </button>
+                  </div>
                 </div>
                 <button
                   onClick={handleSave}
@@ -324,12 +418,6 @@ export default function ProfileScreen({
               className="w-full h-12 bg-primary-lavender hover:bg-lavender-container text-primary-lavender-dark font-sans font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md transition-colors cursor-pointer"
             >
               <Edit3 className="w-4 h-4 fill-primary-lavender-dark" /> Edit Profile
-            </button>
-            <button 
-              onClick={() => setIsDonationModalOpen(true)}
-              className="w-full h-12 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/40 text-emerald-400 font-sans font-bold text-xs rounded-xl flex items-center justify-center gap-2 hover:border-emerald-500/70 hover:from-emerald-500/15 hover:to-teal-500/15 transition-all cursor-pointer shadow-md shadow-emerald-500/5"
-            >
-              <Heart className="w-4 h-4 text-emerald-400 fill-emerald-400/20" /> Support BookLoop (Donation)
             </button>
           </div>
         </div>
@@ -426,20 +514,7 @@ export default function ProfileScreen({
             );
           })()}
 
-          {/* Sale Notification Activity Feed Log */}
-          <div className="bg-nocturnal-surface-low border border-nocturnal-border rounded-2xl p-4.5 flex gap-3.5 items-center">
-            <div className="w-10 h-10 rounded-full bg-primary-lavender/10 border border-primary-lavender/25 text-primary-lavender flex items-center justify-center shrink-0">
-              <RotateCcw className="w-4.5 h-4.5 text-primary-lavender" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-sans font-bold text-on-surface">
-                Last book sold 2 days ago
-              </p>
-              <p className="text-[11px] text-nocturnal-outline mt-1 font-sans leading-relaxed">
-                Sold <span className="font-semibold text-primary-lavender">'The Great Gatsby'</span> to a reader in your region
-              </p>
-            </div>
-          </div>
+
         </div>
       </div>
 

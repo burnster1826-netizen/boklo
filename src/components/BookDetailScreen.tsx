@@ -134,33 +134,7 @@ export default function BookDetailScreen({
             </div>
           </div>
 
-          {/* Quality checkmark listing */}
-          <div className="bg-nocturnal-surface border border-nocturnal-border/80 rounded-2xl p-4.5 space-y-3 shadow-md">
-            <h4 className="text-xs font-semibold text-on-surface uppercase tracking-wider font-sans mb-1">
-              Detailed Log
-            </h4>
-            <div className="space-y-2.5">
-              <div className="flex items-start gap-2 text-xs text-nocturnal-muted font-sans leading-relaxed">
-                <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
-                <span>Pencil lines and highlighting kept under 5% throughout the entire volume.</span>
-              </div>
-              <div className="flex items-start gap-2 text-xs text-nocturnal-muted font-sans leading-relaxed">
-                <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
-                <span>Firm bindings with no loose leaf pages or severe creasing.</span>
-              </div>
-              {book.condition === 'Well-Loved' ? (
-                <div className="flex items-start gap-2 text-xs text-nocturnal-muted font-sans leading-relaxed">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <span>Visible shelf wear and soft corners matching its history.</span>
-                </div>
-              ) : (
-                <div className="flex items-start gap-2 text-xs text-nocturnal-muted font-sans leading-relaxed">
-                  <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
-                  <span>Parchment maintains clean white contrast with no water marks.</span>
-                </div>
-              )}
-            </div>
-          </div>
+
 
           {/* Seller overview card matching design */}
           <div className="bg-nocturnal-surface-low border border-nocturnal-border rounded-xl p-4 flex items-center justify-between">

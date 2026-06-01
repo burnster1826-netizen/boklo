@@ -66,6 +66,10 @@ service cloud.firestore {
       allow delete: if (isSignedIn() && resource.data.sellerId == request.auth.uid) || isAdmin();
     }
 
+    match /system_settings/{id} {
+      allow read, write: if isSignedIn();
+    }
+
     // Helpers for chats
     function isValidChat(data) {
       return data.participantIds is list && data.participantIds.size() == 2 && 

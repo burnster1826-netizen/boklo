@@ -12,7 +12,7 @@ import { MapPin, Compass, Search, PlusCircle, MessageSquare, User, Filter, Slide
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, handleFirestoreError, OperationType, sanitizeForFirestore } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, setDoc, deleteDoc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, onSnapshot, collection, query, where, orderBy, getDoc } from 'firebase/firestore';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -64,14 +64,27 @@ export default function App() {
         });
 
         // 2. Subscribe to Books listing
-        unsubBooks = onSnapshot(collection(db, 'books'), (snap) => {
+        unsubBooks = onSnapshot(collection(db, 'books'), async (snap) => {
           if (snap.empty) {
-            INITIAL_BOOKS.forEach(async (book) => {
-              await setDoc(doc(db, 'books', book.id), {
-                ...book,
-                sellerId: 'system_seed'
+            try {
+              const statusDocRef = doc(db, 'system_settings', 'seed_status');
+              const statusDocSnap = await getDoc(statusDocRef);
+              if (statusDocSnap.exists() && statusDocSnap.data()?.seeded) {
+                // Already seeded before and then deleted intentionally. Keep empty.
+                setBooks([]);
+                return;
+              }
+              // Mark as seeded first
+              await setDoc(statusDocRef, { seeded: true });
+              INITIAL_BOOKS.forEach(async (book) => {
+                await setDoc(doc(db, 'books', book.id), {
+                  ...book,
+                  sellerId: 'system_seed'
+                });
               });
-            });
+            } catch (err) {
+              console.error("Error reading or setting seed status:", err);
+            }
           } else {
             const booksList: Book[] = [];
             snap.forEach((d) => {
@@ -477,7 +490,7 @@ export default function App() {
   }));
 
   return (
-    <div id="bookloop-app-root" className="min-h-screen bg-nocturnal-bg text-on-surface flex flex-col md:flex-row relative overflow-x-hidden antialiased">
+    <div id="bookloop-app-root" className="min-h-screen md:h-screen md:overflow-hidden bg-nocturnal-bg text-on-surface flex flex-col md:flex-row relative overflow-x-hidden antialiased">
       
       {/* DESKTOP STICKY SIDEBAR RAIL (Visible on md and up) */}
       <aside className="hidden md:flex md:flex-col md:w-64 border-r border-nocturnal-border/30 bg-nocturnal-surface-low/55 p-6 gap-6 h-screen sticky top-0 select-none z-40 shrink-0">
@@ -600,7 +613,7 @@ export default function App() {
       </aside>
 
       {/* CONTENT SYSTEM FRAME (Takes remaining width on desktop, full width on mobile) */}
-      <div className={`flex-1 flex flex-col relative overflow-x-hidden ${activeTab === 'messages' ? 'h-screen max-h-screen overflow-hidden' : 'min-h-screen'}`}>
+      <div className={`flex-1 flex flex-col relative overflow-x-hidden ${activeTab === 'messages' ? 'h-screen max-h-screen overflow-hidden' : 'min-h-screen md:h-screen md:max-h-screen md:overflow-y-auto'}`}>
         
         {/* MOBILE SCREEN BAR ONLY (md:hidden) */}
         {!selectedBook && !activeChatId && (
@@ -677,6 +690,7 @@ export default function App() {
                     onBookSelect={setSelectedBook}
                     onToggleLike={handleToggleLike}
                     onOpenDistanceFilter={() => setIsDistanceSheetOpen(true)}
+                    onUpdateDistanceFilter={setFilterDistance}
                     filterDistance={filterDistance}
                   />
                 )}
@@ -848,7 +862,7 @@ export default function App() {
 
               {/* Distances filter circle bento choices */}
               <div className="grid grid-cols-2 gap-3.5">
-                {([2, 5, 10, 25] as const).map((dist) => {
+                {([5, 10, 25, 50] as const).map((dist) => {
                   const isSelected = filterDistance === dist;
                   return (
                     <button
