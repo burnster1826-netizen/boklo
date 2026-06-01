@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper to allow test database connections
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == "burnster1826@gmail.com";
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Helper definitions for users
+    function isValidUser(data) {
+      return data.uid is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 256 &&
+             data.location is string && data.location.size() <= 200;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) &&
+                    (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'email', 'location', 'avatar', 'likedBookIds', 'readingPersona', 'swaps', 'customLocationName', 'isLocationGranted'])))
+                    || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Helpers for books
+    function isValidBook(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.author is string && data.author.size() > 0 && data.author.size() <= 200 &&
+             data.condition is string &&
+             data.price is number && data.price >= 0 &&
+             data.category is string &&
+             data.location is string &&
+             (data.sellerId == request.auth.uid || data.sellerId == 'system_seed');
+    }
+
+    match /books/{bookId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(bookId) && isValidBook(request.resource.data);
+      allow update: if (isSignedIn() && (
+        (resource.data.sellerId == request.auth.uid && isValidBook(request.resource.data) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'author', 'condition', 'price', 'category', 'description', 'images', 'location', 'distance']))
+      )) || isAdmin();
+      allow delete: if (isSignedIn() && resource.data.sellerId == request.auth.uid) || isAdmin();
+    }
+
+    // Helpers for chats
+    function isValidChat(data) {
+      return data.participantIds is list && data.participantIds.size() == 2 && 
+             data.participantIds.hasAll([request.auth.uid]) &&
+             data.book is map && data.book.id is string;
+    }
+
+    match /chats/{chatId} {
+      allow get: if isSignedIn() && resource.data.participantIds.hasAny([request.auth.uid]);
+      allow list: if isSignedIn() && resource.data.participantIds.hasAny([request.auth.uid]);
+      allow create: if isSignedIn() && isValidId(chatId) && isValidChat(request.resource.data);
+      allow update: if isSignedIn() && resource.data.participantIds.hasAny([request.auth.uid]) && isValidChat(request.resource.data);
+      allow delete: if false;
+
+      // Messages subcollection
+      function isValidMessage(chatId, data) {
+        return get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds.hasAny([data.senderId]) &&
+               data.text is string && data.text.size() <= 5000;
+      }
+
+      match /messages/{messageId} {
+         allow read, list: if isSignedIn() && get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds.hasAny([request.auth.uid]);
+         allow create: if isSignedIn() && isValidId(messageId) &&
+                       get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds.hasAny([request.auth.uid]) &&
+                       isValidMessage(chatId, request.resource.data);
+         allow update, delete: if false;
+      }
+    }
+  }
+}

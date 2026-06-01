@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with information about a swapper",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "avatar": { "type": "string" },
+        "location": { "type": "string" },
+        "rating": { "type": "number" },
+        "swaps": { "type": "number" },
+        "likedBookIds": { "type": "array" },
+        "readingPersona": { "type": "object" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "name", "email", "location"]
+    },
+    "Book": {
+      "title": "Book",
+      "description": "Book listing for swapping",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "author": { "type": "string" },
+        "condition": { "type": "string" },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "images": { "type": "array" },
+        "location": { "type": "string" },
+        "distance": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "seller": { "type": "object" },
+        "sellerId": { "type": "string" }
+      },
+      "required": ["title", "author", "condition", "price", "category", "location", "sellerId"]
+    },
+    "Chat": {
+      "title": "Chat",
+      "description": "Chat session between two swappers regarding a book",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "participantIds": { "type": "array" },
+        "participants": { "type": "object" },
+        "book": { "type": "object" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["participantIds", "book"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Individual chat message",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["senderId", "text"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profile records"
+    },
+    "books/{bookId}": {
+      "schema": "Book",
+      "description": "Collection of books listed by community members"
+    },
+    "chats/{chatId}": {
+      "schema": "Chat",
+      "description": "Collection of active chat directories"
+    },
+    "chats/{chatId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Real-time individual message records within a chat session"
+    }
+  }
+}

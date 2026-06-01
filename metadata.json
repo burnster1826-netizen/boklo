@@ -1,0 +1,10 @@
+{
+  "name": "BookLoop",
+  "description": "An India-based community book exchange and listing platform for avid readers. Find and swap books locally.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

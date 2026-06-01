@@ -1,0 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&family=Nunito:wght@300..900&family=Quicksand:wght@300..700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Quicksand", "Nunito", system-ui, sans-serif;
+  --font-serif: "Comfortaa", "Quicksand", sans-serif;
+  
+  --color-primary-lavender: #d3bcfc;
+  --color-primary-lavender-dark: #38265b;
+  --color-lavender-container: #b39ddb;
+  --color-on-lavender-container: #453268;
+  
+  --color-accent-terracotta: #ffb59c;
+  --color-accent-terracotta-dark: #5c1900;
+  
+  --color-nocturnal-bg: #131315;
+  --color-nocturnal-surface: #141317;
+  --color-nocturnal-surface-low: #1b1b1d;
+  --color-nocturnal-surface-high: #2a2a2c;
+  --color-nocturnal-surface-highest: #353437;
+  --color-nocturnal-surface-lowest: #0e0e10;
+  
+  --color-nocturnal-border: #49454f;
+  --color-nocturnal-outline: #948e99;
+  --color-nocturnal-muted: #cbc4d0;
+}
+
+body {
+  background-color: #131315;
+  color: #e5e1e4;
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  min-height: 100vh;
+}
+
+/* Custom dashed border for upload slot */
+.custom-dashed {
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%2349454f' stroke-width='2' stroke-dasharray='8%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  border-radius: 12px;
+}
+
+/* Unread bubble neon glow */
+.message-unread-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #d3bcfc;
+  box-shadow: 0 0 12px rgba(211, 188, 252, 0.8);
+  border: 2px solid #131315;
+}
+
+/* Custom scrollbar hiding helper */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Glassmorphism card styles */
+.glass-card {
+  background: rgba(30, 30, 36, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(73, 69, 79, 0.5);
+}
+
+.chat-bubble-left {
+  background-color: #353437;
+  border: 1px solid rgba(73, 69, 79, 0.6);
+  border-radius: 16px 16px 16px 4px;
+}
+
+.chat-bubble-right {
+  background-color: #b39ddb;
+  color: #131315;
+  border-radius: 16px 16px 4px 16px;
+}
+
+/* Global scroll styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #131315;
+}
+::-webkit-scrollbar-thumb {
+  background: #353437;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #49454f;
+}
