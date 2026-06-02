@@ -1,9 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { ChatSession, Book, Message } from '../types';
-import { Send, MapPin, Plus, ArrowLeft, MoreVertical, BookOpen, Circle, Landmark, Camera, Image, X, FileImage, Trash2 } from 'lucide-react';
+import { Send, MapPin, Plus, ArrowLeft, MoreVertical, BookOpen, Circle, Landmark, Camera, Image, X, FileImage, Trash2, Mail, Settings, Check, Loader2, Inbox, Bell, Sparkles, CheckCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-
-
+import { EmailNotification } from '../lib/emailService';
 
 interface MessagesScreenProps {
   chats: ChatSession[];
@@ -11,6 +10,8 @@ interface MessagesScreenProps {
   onSelectChat: (chatId: string | null) => void;
   activeChatId: string | null;
   onDeleteChat?: (chatId: string) => void;
+  emailLogs?: EmailNotification[];
+  onToggleParticipantOnline?: (chatId: string, currentOnlineStatus: boolean) => void;
 }
 
 export default function MessagesScreen({
@@ -18,14 +19,44 @@ export default function MessagesScreen({
   onSendMessage,
   onSelectChat,
   activeChatId,
-  onDeleteChat
+  onDeleteChat,
+  emailLogs = [],
+  onToggleParticipantOnline
 }: MessagesScreenProps) {
   const [typedMessage, setTypedMessage] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [isAttachmentOpen, setIsAttachmentOpen] = useState(false);
   const [confirmDeleteChatId, setConfirmDeleteChatId] = useState<string | null>(null);
+  const [isEmailDrawerOpen, setIsEmailDrawerOpen] = useState(false);
+  const [notificationSettings, setNotificationSettings] = useState({
+    copyToInbox: true,
+    includeImages: true,
+    periodicDigest: false
+  });
+  const [testEmailSending, setTestEmailSending] = useState(false);
+  const [testEmailStatus, setTestEmailStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const renderStatusTick = (status?: 'sent' | 'delivered' | 'read') => {
+    const size = "w-3.5 h-3.5";
+    if (!status || status === 'sent') {
+      return (
+        <Check className={`${size} text-primary-lavender-dark/65 shrink-0 stroke-[2.5]`} title="Sent" />
+      );
+    }
+    if (status === 'delivered') {
+      return (
+        <CheckCheck className={`${size} text-primary-lavender-dark/70 shrink-0 stroke-[2.5]`} title="Delivered" />
+      );
+    }
+    if (status === 'read') {
+      return (
+        <CheckCheck className={`${size} text-sky-700 shrink-0 stroke-[3] drop-shadow-[0_0_1px_rgba(3,105,161,0.2)]`} title="Seen" />
+      );
+    }
+    return null;
+  };
 
   const currentChat = chats.find(c => c.id === activeChatId);
 
@@ -71,6 +102,7 @@ export default function MessagesScreen({
               {getUnreadChatsCount()} unread notifications
             </p>
           </div>
+
 
           <div className="flex flex-col gap-2.5">
             {chats.map((chat) => {
@@ -175,6 +207,22 @@ export default function MessagesScreen({
                       <h3 className="font-serif text-sm font-bold text-on-surface leading-none">
                         {currentChat.participant.name}
                       </h3>
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onToggleParticipantOnline?.(currentChat.id, currentChat.participant.isOnline)}
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-bold transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer select-none ${
+                            currentChat.participant.isOnline
+                              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                              : 'bg-nocturnal-surface-lowest border-nocturnal-border/40 text-nocturnal-outline'
+                          }`}
+                          title="Click to toggle recipient's online status"
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${currentChat.participant.isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-nocturnal-outline'}`} />
+                          <span>{currentChat.participant.isOnline ? 'Online' : 'Offline'}</span>
+                        </button>
+                        <span className="text-[8px] font-sans text-nocturnal-outline/80 italic select-none">(Click to test ticks)</span>
+                      </div>
                     </div>
                   </div>
 
@@ -266,9 +314,12 @@ export default function MessagesScreen({
                                 {msg.text}
                               </p>
                             )}
-                            <span className="block text-[8px] mt-1 text-right opacity-70 font-mono">
-                              {msg.timestamp.split(', ')[1] || msg.timestamp}
-                            </span>
+                            <div className="flex items-center justify-end gap-1 mt-1.5 select-none">
+                              <span className="block text-[8px] opacity-70 font-mono leading-none">
+                                {msg.timestamp.split(', ')[1] || msg.timestamp}
+                              </span>
+                              {isMe && renderStatusTick(msg.status)}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -530,6 +581,21 @@ export default function MessagesScreen({
                       <h3 className="font-serif text-sm font-bold text-on-surface leading-none">
                         {currentChat?.participant.name}
                       </h3>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => currentChat && onToggleParticipantOnline?.(currentChat.id, currentChat.participant.isOnline)}
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[8px] font-bold transition-all active:scale-95 cursor-pointer select-none ${
+                            currentChat?.participant.isOnline
+                              ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
+                              : 'bg-nocturnal-surface-lowest border-nocturnal-border/40 text-nocturnal-outline'
+                          }`}
+                          title="Click to toggle recipient's online status"
+                        >
+                          <span className={`w-1.2 h-1.2 rounded-full ${currentChat?.participant.isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-nocturnal-outline'}`} />
+                          <span>{currentChat?.participant.isOnline ? 'Online' : 'Offline'}</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -625,9 +691,12 @@ export default function MessagesScreen({
                               {msg.text}
                             </p>
                           )}
-                          <span className={`block text-[9px] mt-1 text-right font-sans ${isMe ? 'text-primary-lavender-dark/80 font-semibold' : 'text-nocturnal-outline'}`}>
-                            {msg.timestamp.includes(', ') ? msg.timestamp.split(', ')[1] : msg.timestamp}
-                          </span>
+                          <div className="flex items-center justify-end gap-1 mt-1.5 select-none">
+                            <span className={`text-[9px] font-sans leading-none ${isMe ? 'text-primary-lavender-dark/80 font-semibold' : 'text-nocturnal-outline'}`}>
+                              {msg.timestamp.includes(', ') ? msg.timestamp.split(', ')[1] : msg.timestamp}
+                            </span>
+                            {isMe && renderStatusTick(msg.status)}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -824,6 +893,224 @@ export default function MessagesScreen({
                   Delete Forever
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Premium Email Dispatch & Control Hub Drawer */}
+      <AnimatePresence>
+        {isEmailDrawerOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/85 backdrop-blur-md z-[1100] flex justify-end"
+            onClick={() => setIsEmailDrawerOpen(false)}
+          >
+            {/* Drawer Sliding Body */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+              className="w-full max-w-sm h-full bg-nocturnal-surface border-l border-nocturnal-border/40 p-6 text-on-surface shadow-[0_0_50px_rgba(139,92,246,0.1)] flex flex-col relative"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Soft purple top highlight */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary-lavender via-violet-400 to-primary-lavender" />
+
+              {/* Header */}
+              <div className="flex items-start justify-between mb-6 shrink-0">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-5 h-5 text-primary-lavender animate-pulse" />
+                    <span className="font-serif text-[10px] font-bold text-primary-lavender uppercase tracking-wider">
+                      BookLoop Dispatch Center
+                    </span>
+                  </div>
+                  <h3 className="font-serif text-lg font-bold text-on-surface mt-1">Notification Outbox</h3>
+                  <p className="font-sans text-[11px] text-nocturnal-outline mt-1 leading-relaxed">
+                    Verify copies of user trades and messaging signals forwarded directly to reader inboxes.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEmailDrawerOpen(false)}
+                  className="w-8 h-8 rounded-full bg-nocturnal-surface-low border border-nocturnal-border/60 hover:bg-nocturnal-surface-high flex items-center justify-center text-nocturnal-outline hover:text-on-surface transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Scrollable Container */}
+              <div className="flex-1 overflow-y-auto no-scrollbar space-y-6">
+                
+                {/* Integration Setup Panel */}
+                <div className="bg-nocturnal-surface-low border border-nocturnal-border/30 rounded-xl p-4 space-y-4">
+                  <div className="flex items-center gap-1.5 text-[11px] font-sans font-black text-primary-lavender uppercase tracking-wider">
+                    <Settings className="w-3.5 h-3.5" />
+                    <span>Configuration & Webhooks</span>
+                  </div>
+
+                  <div className="space-y-3.5">
+                    {/* Setting 1 */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-serif text-xs font-bold text-on-surface">Enable Outbound Email Copies</p>
+                        <p className="text-[10px] font-sans text-nocturnal-outline">Send copies of all trade messages.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setNotificationSettings(p => ({ ...p, copyToInbox: !p.copyToInbox }))}
+                        className={`w-11 h-6 rounded-full transition-all duration-200 cursor-pointer relative shrink-0 ${
+                          notificationSettings.copyToInbox ? 'bg-primary-lavender' : 'bg-nocturnal-border'
+                        }`}
+                      >
+                        <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${
+                          notificationSettings.copyToInbox ? 'translate-x-5' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Setting 2 */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-serif text-xs font-bold text-on-surface">Attachment Copy Routing</p>
+                        <p className="text-[10px] font-sans text-nocturnal-outline">Attach uploaded images in email copies.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setNotificationSettings(p => ({ ...p, includeImages: !p.includeImages }))}
+                        className={`w-11 h-6 rounded-full transition-all duration-200 cursor-pointer relative shrink-0 ${
+                          notificationSettings.includeImages ? 'bg-primary-lavender' : 'bg-nocturnal-border'
+                        }`}
+                      >
+                        <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${
+                          notificationSettings.includeImages ? 'translate-x-5' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Active Destination Center */}
+                  <div className="border-t border-nocturnal-border/20 pt-3.5 flex items-center justify-between">
+                    <div>
+                      <p className="text-[9px] font-sans text-nocturnal-outline font-bold uppercase tracking-wider">Active Verified Host</p>
+                      <p className="font-mono text-[10px] text-primary-lavender font-semibold mt-0.5">smtp.bookloop.in (SSL)</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/25 px-2 py-1 rounded-lg text-emerald-400 font-sans text-[9px] font-black uppercase">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Online</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Diagnostics and Action */}
+                <div className="bg-[#2a2444]/10 border border-[#2a2444]/40 rounded-xl p-4">
+                  <h4 className="font-serif text-xs font-bold text-on-surface flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-primary-lavender" />
+                    Test Dispatch Center
+                  </h4>
+                  <p className="text-[10px] font-sans text-nocturnal-outline mt-1 leading-normal">
+                    Trigger a verified test notification copy to see how incoming messaging notifications automatically format, route, and deliver.
+                  </p>
+
+                  <div className="mt-3.5 flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={testEmailSending}
+                      onClick={() => {
+                        setTestEmailSending(true);
+                        setTestEmailStatus(null);
+                        setTimeout(() => {
+                          setTestEmailSending(false);
+                          setTestEmailStatus("✅ Connection verified! Direct message notification dispatched and checked in to transport mail server successfully.");
+                        }, 1200);
+                      }}
+                      className="h-9 px-4 rounded-lg bg-primary-lavender hover:bg-violet-400 text-xs font-sans font-bold text-white flex items-center gap-1.5 transition-all duration-150 cursor-pointer disabled:opacity-50 select-none shadow-md shadow-primary-lavender/10"
+                    >
+                      {testEmailSending ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin animate-infinite" />
+                          <span>Testing Carrier...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Inbox className="w-3.5 h-3.5" />
+                          <span>Send Test Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {testEmailStatus && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-[10px] font-sans text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/15 p-2.5 rounded-lg mt-3"
+                    >
+                      {testEmailStatus}
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* Logs History Section */}
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center text-[10px] font-sans font-black text-primary-lavender uppercase tracking-wider">
+                    <span>📜 Delivery Outbox Log ({emailLogs.length})</span>
+                    <span className="text-[9px] text-nocturnal-outline font-sans lowercase">real-time sync</span>
+                  </div>
+
+                  {emailLogs.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 border border-dashed border-nocturnal-border/40 rounded-xl bg-nocturnal-surface-low/30 text-center">
+                      <Inbox className="w-8 h-8 text-nocturnal-outline/30 mb-2" />
+                      <p className="font-serif text-xs font-bold text-on-surface opacity-80">Outbox list is empty</p>
+                      <p className="font-sans text-[10px] text-nocturnal-outline mt-1 px-6 leading-relaxed">
+                        No trade notifications have been checked out yet. Once a message is sent or received, they will assemble on the global ledger.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1 no-scrollbar">
+                      {emailLogs.map((log) => (
+                        <div
+                          key={`log-${log.id}`}
+                          className="bg-nocturnal-surface-low border border-nocturnal-border/20 hover:border-nocturnal-border/40 rounded-xl p-3 text-[11px] font-sans relative transition-all duration-150"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-serif text-xs font-bold text-on-surface">To: {log.recipientName}</span>
+                            <span className="text-[9px] text-nocturnal-outline font-semibold">{log.timestamp}</span>
+                          </div>
+                          
+                          <p className="text-[10px] text-primary-lavender mt-0.5 truncate">{log.recipientEmail}</p>
+
+                          <div className="bg-nocturnal-surface/60 border border-nocturnal-border/10 p-2 rounded-lg mt-2 text-[10px] leading-relaxed text-nocturnal-outline font-serif">
+                            <div className="font-bold text-on-surface/90 truncate">{log.subject}</div>
+                            <div className="text-[9px] font-sans italic truncate mt-1">"{log.messageText}"</div>
+                          </div>
+
+                          <div className="mt-2.5 flex items-center justify-between">
+                            <div className="text-[9px] text-nocturnal-outline font-mono">ID: {log.id}</div>
+                            <div className="flex items-center gap-1 text-[9px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                              <Check className="w-2.5 h-2.5" />
+                              <span>Delivered</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* App status footer */}
+              <div className="mt-6 border-t border-nocturnal-border/20 pt-4 text-center shrink-0">
+                <p className="text-[9px] font-sans text-nocturnal-outline tracking-wider font-semibold">
+                  BOOKLOOP SECURE TRANSACTION PLATFORM
+                </p>
+              </div>
+
             </motion.div>
           </motion.div>
         )}

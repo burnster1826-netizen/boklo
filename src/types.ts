@@ -38,6 +38,7 @@ export interface Message {
   isMeetingPoint?: boolean;
   meetingLocation?: string;
   image?: string;
+  status?: 'sent' | 'delivered' | 'read';
 }
 
 export interface ChatSession {

@@ -40,13 +40,17 @@ service cloud.firestore {
       allow list: if isSignedIn();
       allow create: if isOwner(userId) && isValidUser(request.resource.data);
       allow update: if (isOwner(userId) && isValidUser(request.resource.data) &&
-                    (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'email', 'location', 'avatar', 'likedBookIds', 'readingPersona', 'swaps', 'customLocationName', 'isLocationGranted'])))
+                    (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'email', 'location', 'avatar', 'likedBookIds', 'readingPersona', 'swaps', 'customLocationName', 'isLocationGranted', 'isOnline'])))
                     || isAdmin();
       allow delete: if isAdmin();
     }
 
     match /chats_seeded/{userId} {
       allow read, write: if isOwner(userId);
+    }
+
+    match /email_notifications/{id} {
+      allow read, write: if isSignedIn();
     }
 
     // Helpers for books
@@ -99,7 +103,8 @@ service cloud.firestore {
          allow create: if isSignedIn() && isValidId(messageId) &&
                        get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds.hasAny([request.auth.uid]) &&
                        isValidMessage(chatId, request.resource.data);
-         allow update, delete: if false;
+         allow update: if isSignedIn() && get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds.hasAny([request.auth.uid]);
+         allow delete: if false;
       }
     }
   }

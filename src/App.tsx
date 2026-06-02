@@ -9,6 +9,7 @@ import MessagesScreen from './components/MessagesScreen';
 import ProfileScreen from './components/ProfileScreen';
 import AdminScreen from './components/AdminScreen';
 import { MapPin, Compass, Search, PlusCircle, MessageSquare, User, Filter, SlidersHorizontal, ChevronDown, Check, Shield, X } from 'lucide-react';
+import { triggerEmailNotification, EmailNotification } from './lib/emailService';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, handleFirestoreError, OperationType, sanitizeForFirestore } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -21,6 +22,7 @@ export default function App() {
   const [messagesMap, setMessagesMap] = useState<Record<string, Message[]>>({});
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [authInitializing, setAuthInitializing] = useState(true);
+  const [emailLogs, setEmailLogs] = useState<EmailNotification[]>([]);
 
   const [activeTab, setActiveTab] = useState<'discover' | 'list' | 'messages' | 'profile' | 'admin'>('discover');
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
@@ -134,7 +136,8 @@ export default function App() {
                     timestamp: msg.timestamp,
                     createdAt: new Date(Date.now() - 100000).toISOString(),
                     isMeetingPoint: msg.isMeetingPoint || false,
-                    meetingLocation: msg.meetingLocation || ""
+                    meetingLocation: msg.meetingLocation || "",
+                    status: 'read'
                   };
                   await setDoc(doc(db, 'chats', uniqueChatId, 'messages', msg.id), seedMsg);
                 }
@@ -187,7 +190,8 @@ export default function App() {
             timestamp: msgData.timestamp,
             isMeetingPoint: msgData.isMeetingPoint,
             meetingLocation: msgData.meetingLocation,
-            image: msgData.image
+            image: msgData.image,
+            status: msgData.status || 'sent'
           });
         });
         setMessagesMap(prev => ({
@@ -225,6 +229,32 @@ export default function App() {
     });
 
     return () => unsubUsers();
+  }, [currentUser]);
+
+  // Real-time email notifications listener
+  useEffect(() => {
+    if (!currentUser || !auth.currentUser) {
+      setEmailLogs([]);
+      return;
+    }
+
+    const unsubNotifs = onSnapshot(collection(db, 'email_notifications'), (snap) => {
+      const logsList: EmailNotification[] = [];
+      const uid = auth.currentUser?.uid;
+      snap.forEach((docSnap) => {
+        const d = docSnap.data() as EmailNotification;
+        if (d.senderId === uid || d.recipientId === uid) {
+          logsList.push(d);
+        }
+      });
+      // Sort newest first
+      logsList.sort((a, b) => b.id.localeCompare(a.id));
+      setEmailLogs(logsList);
+    }, (error) => {
+      console.error("Email Notifications fetch error:", error);
+    });
+
+    return () => unsubNotifs();
   }, [currentUser]);
 
   const handleAuthSuccess = (loggedInUser: UserProfile) => {
@@ -378,7 +408,8 @@ export default function App() {
       senderId: auth.currentUser.uid,
       text: text || "",
       timestamp,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      status: 'sent'
     };
 
     if (image) {
@@ -388,8 +419,38 @@ export default function App() {
     try {
       await setDoc(doc(db, 'chats', chatId, 'messages', msgId), newMsg);
 
-      // Trigger automatic reply shortly after sending
+      // Trigger user-to-participant email notification
       const currentChat = chats.find(c => c.id === chatId);
+      const isOnline = currentChat?.participant.isOnline || false;
+
+      if (currentChat) {
+        triggerEmailNotification({
+          senderId: auth.currentUser?.uid || 'unknown',
+          senderName: currentUser.name,
+          recipientId: currentChat.participant.id,
+          recipientName: currentChat.participant.name,
+          recipientEmail: (currentChat.participant as any).email,
+          bookTitle: currentChat.book.title,
+          messageText: text || "Sent an image attachment"
+        });
+      }
+
+      // Live Checkmarks transition: sent -> delivered -> read (simulated real-time)
+      if (currentChat && isOnline) {
+        // If they are online, we set it to 'delivered' immediately in Firestore
+        await setDoc(doc(db, 'chats', chatId, 'messages', msgId), { status: 'delivered' }, { merge: true });
+
+        // Then simulate they 'read' it (blue double tick) after 1.2 seconds
+        setTimeout(async () => {
+          try {
+            await setDoc(doc(db, 'chats', chatId, 'messages', msgId), { status: 'read' }, { merge: true });
+          } catch (e) {
+            console.error("Failed transition to read:", e);
+          }
+        }, 1200);
+      }
+
+      // Trigger automatic reply shortly after sending
       if (currentChat) {
         setTimeout(async () => {
           const responseText = image 
@@ -405,10 +466,81 @@ export default function App() {
             createdAt: new Date().toISOString()
           };
           await setDoc(doc(db, 'chats', chatId, 'messages', replyId), replyMsg);
-        }, 1500);
+
+          // Trigger participant-to-user incoming email notification
+          triggerEmailNotification({
+            senderId: currentChat.participant.id,
+            senderName: currentChat.participant.name,
+            recipientId: auth.currentUser?.uid || 'unknown',
+            recipientName: currentUser.name,
+            recipientEmail: currentUser.email,
+            bookTitle: currentChat.book.title,
+            messageText: responseText
+          });
+        }, 1800); // Wait until after the read tick transition is complete to reply!
       }
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `chats/${chatId}/messages`);
+    }
+  };
+
+  const handleToggleParticipantOnline = async (chatId: string, currentOnlineStatus: boolean) => {
+    try {
+      const nextOnlineStatus = !currentOnlineStatus;
+      await setDoc(doc(db, 'chats', chatId), {
+        participant: {
+          isOnline: nextOnlineStatus
+        }
+      }, { merge: true });
+
+      // If turning online, deliver all 'sent' messages and mark as read
+      if (nextOnlineStatus) {
+        const msgs = messagesMap[chatId] || [];
+        const sentMeMsgs = msgs.filter(m => m.sender === 'me' && (!m.status || m.status === 'sent'));
+        
+        // Mark as Delivered
+        for (const msg of sentMeMsgs) {
+          await setDoc(doc(db, 'chats', chatId, 'messages', msg.id), { status: 'delivered' }, { merge: true });
+        }
+
+        // After a small delay, mark as Read and reply
+        if (sentMeMsgs.length > 0) {
+          setTimeout(async () => {
+            for (const msg of sentMeMsgs) {
+              await setDoc(doc(db, 'chats', chatId, 'messages', msg.id), { status: 'read' }, { merge: true });
+            }
+          }, 1200);
+
+          const lastUserMsg = sentMeMsgs[sentMeMsgs.length - 1];
+          const currentChat = chats.find(c => c.id === chatId);
+          if (currentChat && lastUserMsg) {
+            setTimeout(async () => {
+              const responseText = getRandomReply(currentChat.participant.name, lastUserMsg.text);
+              const replyId = `msg-reply-${Date.now()}`;
+              const replyMsg = {
+                id: replyId,
+                senderId: currentChat.participant.id,
+                text: responseText,
+                timestamp: "Today, " + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                createdAt: new Date().toISOString()
+              };
+              await setDoc(doc(db, 'chats', chatId, 'messages', replyId), replyMsg);
+              
+              triggerEmailNotification({
+                senderId: currentChat.participant.id,
+                senderName: currentChat.participant.name,
+                recipientId: auth.currentUser?.uid || 'unknown',
+                recipientName: currentUser.name,
+                recipientEmail: currentUser.email,
+                bookTitle: currentChat.book.title,
+                messageText: responseText
+              });
+            }, 2000);
+          }
+        }
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `chats/${chatId}`);
     }
   };
 
@@ -739,6 +871,8 @@ export default function App() {
                     onSelectChat={setActiveChatId}
                     activeChatId={activeChatId}
                     onDeleteChat={handleDeleteChat}
+                    emailLogs={emailLogs}
+                    onToggleParticipantOnline={handleToggleParticipantOnline}
                   />
                 )}
 
@@ -750,6 +884,7 @@ export default function App() {
                     onSelectBook={setSelectedBook}
                     onSignOut={handleSignOut}
                     onUpdateProfile={handleUpdateProfile}
+                    emailLogs={emailLogs}
                   />
                 )}
 

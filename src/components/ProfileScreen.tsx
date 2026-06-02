@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { UserProfile, Book } from '../types';
-import { Settings, Award, Edit3, Shield, RotateCcw, Sparkles, BookOpen, LogOut, MapPin, CheckCircle, Save, Camera, Upload, X, Check, Heart, Copy, Smartphone, QrCode, ExternalLink, Compass } from 'lucide-react';
+import { Settings, Award, Edit3, Shield, RotateCcw, Sparkles, BookOpen, LogOut, MapPin, CheckCircle, Save, Camera, Upload, X, Check, Heart, Copy, Smartphone, QrCode, ExternalLink, Compass, Mail, Clock, Inbox } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { EmailNotification } from '../lib/emailService';
 
 const CURATED_AVATARS = [
   {
@@ -83,6 +84,7 @@ interface ProfileScreenProps {
   onSelectBook: (book: Book) => void;
   onSignOut: () => void;
   onUpdateProfile: (updated: Partial<UserProfile>) => void;
+  emailLogs?: EmailNotification[];
 }
 
 export default function ProfileScreen({
@@ -91,7 +93,8 @@ export default function ProfileScreen({
   allBooks,
   onSelectBook,
   onSignOut,
-  onUpdateProfile
+  onUpdateProfile,
+  emailLogs = []
 }: ProfileScreenProps) {
   const [activeBookTab, setActiveBookTab] = useState<'listed' | 'favorites'>('listed');
   const [isEditing, setIsEditing] = useState(false);
@@ -425,6 +428,61 @@ export default function ProfileScreen({
             >
               <Heart className="w-4 h-4 fill-nocturnal-bg" /> Donate to BookLoop
             </button>
+          </div>
+
+          {/* Delivery Logs Dashboard section */}
+          <div className="bg-nocturnal-surface-low border border-nocturnal-border/40 hover:border-nocturnal-border/80 rounded-2xl p-4 mt-1 text-left transition-all duration-200">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-7 h-7 rounded-lg bg-primary-lavender/10 border border-primary-lavender/25 flex items-center justify-center text-primary-lavender">
+                <Mail className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <h4 className="font-serif text-xs font-bold text-on-surface">📬 Mail Forward Logs</h4>
+                <p className="text-[9px] font-sans text-nocturnal-outline">Message triggers history</p>
+              </div>
+            </div>
+
+            {emailLogs.length === 0 ? (
+              <div className="text-center py-5 border border-dashed border-nocturnal-border/20 rounded-xl bg-nocturnal-surface/30">
+                <Inbox className="w-5 h-5 text-nocturnal-outline/35 mx-auto mb-1" />
+                <p className="text-[10px] font-sans font-bold text-nocturnal-outline leading-none">No logs dispatched</p>
+                <p className="text-[9px] font-sans text-nocturnal-outline/80 mt-1 px-3 leading-normal">
+                  Trade updates sent live will register here automatically.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1 no-scrollbar">
+                {emailLogs.slice(0, 5).map((log) => (
+                  <div
+                    key={`profile-log-${log.id}`}
+                    className="bg-nocturnal-surface/60 border border-nocturnal-border/10 rounded-xl p-2.5 text-[10px] font-sans relative"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-on-surface truncate pr-2 max-w-[100px]">To: {log.recipientName}</span>
+                      <span className="text-[8px] text-nocturnal-outline font-semibold">{log.timestamp}</span>
+                    </div>
+                    <p className="text-[9px] text-primary-lavender mt-0.5 truncate">{log.recipientEmail}</p>
+                    
+                    <div className="bg-nocturnal-surface-low/50 border border-nocturnal-border/5 p-1.5 rounded-lg mt-1.5 font-sans italic truncate text-nocturnal-outline text-[9px]">
+                      "{log.messageText}"
+                    </div>
+
+                    <div className="mt-1.5 flex items-center justify-between">
+                      <span className="font-mono text-[8px] text-nocturnal-outline">{log.id.split('-').slice(0, 2).join('-')}</span>
+                      <span className="flex items-center gap-0.5 text-[8px] text-emerald-400 font-bold bg-emerald-500/10 px-1 py-0.5 rounded">
+                        <Check className="w-2 h-2" />
+                        <span>Sent</span>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {emailLogs.length > 5 && (
+                  <p className="text-center text-[8px] font-sans text-nocturnal-outline mt-2 font-semibold block uppercase tracking-wider">
+                    + {emailLogs.length - 5} more logs in messages outbox
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

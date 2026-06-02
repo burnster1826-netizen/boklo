@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Book, UserProfile } from '../types';
-import { ArrowLeft, Heart, Shield, CheckCircle2, AlertTriangle, MessageSquare, MapPin, Eye, BookOpen, Layers } from 'lucide-react';
-import { motion } from 'motion/react';
+import { ArrowLeft, Heart, Shield, CheckCircle2, AlertTriangle, MessageSquare, MapPin, Eye, BookOpen, Layers, X, Check, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { db, auth } from '../firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
 interface BookDetailScreenProps {
   book: Book;
@@ -22,7 +24,49 @@ export default function BookDetailScreen({
 }: BookDetailScreenProps) {
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [isConfirmingSold, setIsConfirmingSold] = useState(false);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('Inappropriate Content');
+  const [reportComments, setReportComments] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [reportSubmitted, setReportSubmitted] = useState(false);
+
   const isLiked = user.likedBookIds.includes(book.id);
+
+  const reportReasons = [
+    'Inappropriate Content',
+    'Misleading/Fake Listing',
+    'Wrong Price/Category',
+    'Spam/Abuse of Platform',
+    'Copyright or Pirated Materials',
+    'Other (Please describe below)'
+  ];
+
+  const handleSendReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingReport(true);
+    try {
+      await addDoc(collection(db, 'reports'), {
+        reportedBookId: book.id,
+        reportedBookTitle: book.title,
+        reportedBookCategory: book.category,
+        reportedBookAuthor: book.author,
+        reportedBookPrice: book.price,
+        sellerName: book.seller.name,
+        reporterUserId: auth.currentUser?.uid || 'anonymous',
+        reporterUserName: user.name,
+        reporterUserEmail: user.email || 'not-provided@bookloop.in',
+        reason: reportReason,
+        comments: reportComments.trim(),
+        createdAt: new Date().toISOString(),
+        status: 'pending'
+      });
+      setReportSubmitted(true);
+    } catch (err) {
+      console.error("Failed to submit book report:", err);
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
 
   return (
     <div className="space-y-6 pb-28">
@@ -166,6 +210,24 @@ export default function BookDetailScreen({
             </div>
           </div>
 
+          {/* Flag / Report Listing section */}
+          <div className="flex items-center justify-between bg-nocturnal-surface/25 border border-nocturnal-border/30 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[11px] font-sans font-bold text-on-surface/90">Inappropriate Listing?</p>
+                <p className="text-[9px] font-sans text-nocturnal-outline">Flag this item if it violates guidelines or is misleading.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsReportDialogOpen(true)}
+              className="px-2.5 py-1.5 rounded-lg border border-rose-500/30 hover:bg-rose-500/10 text-[10px] font-sans font-bold text-rose-400 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer whitespace-nowrap"
+            >
+              Report Listing
+            </button>
+          </div>
+
           {/* Action triggers styled natively on desktop, fixed bottom bar on mobile */}
           <div className="hidden md:flex gap-3 pt-3">
             <button
@@ -291,6 +353,151 @@ export default function BookDetailScreen({
           )}
         </div>
       </div>
+
+      {/* Report Listing Modal Dialog */}
+      <AnimatePresence>
+        {isReportDialogOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[2000] flex items-center justify-center p-4 text-on-surface"
+          >
+            {/* Modal Body */}
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              transition={{ type: 'spring', duration: 0.3 }}
+              className="w-full max-w-md bg-nocturnal-surface-low border border-nocturnal-border/85 rounded-2xl p-6 shadow-2xl relative"
+            >
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsReportDialogOpen(false);
+                  setReportSubmitted(false);
+                  setReportComments('');
+                }}
+                className="absolute top-4 right-4 w-7 h-7 rounded-full bg-nocturnal-surface-high border border-nocturnal-border/60 hover:bg-nocturnal-surface/40 flex items-center justify-center text-nocturnal-outline hover:text-on-surface transition-all cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+
+              {!reportSubmitted ? (
+                <form onSubmit={handleSendReport} className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-nocturnal-border/30">
+                    <AlertTriangle className="w-5 h-5 text-rose-500 animate-pulse" />
+                    <h3 className="font-serif text-base font-bold text-on-surface">
+                      Report Listing
+                    </h3>
+                  </div>
+
+                  <p className="text-[11px] font-sans text-nocturnal-outline leading-normal">
+                    You are flagging <span className="text-primary-lavender font-semibold font-serif">"{book.title}"</span> by {book.author}. 
+                    Our moderators will review this listing within 24 hours.
+                  </p>
+
+                  {/* Reason Selection */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-sans font-bold uppercase tracking-wider text-nocturnal-outline">
+                      Select Reason
+                    </label>
+                    <div className="space-y-1 max-h-[160px] overflow-y-auto pr-1">
+                      {reportReasons.map((reason) => (
+                        <button
+                          key={reason}
+                          type="button"
+                          onClick={() => setReportReason(reason)}
+                          className={`w-full text-left px-3 py-2 rounded-lg border text-xs font-sans font-medium transition-all ${
+                            reportReason === reason
+                              ? 'bg-rose-500/10 border-rose-500/40 text-rose-300'
+                              : 'bg-nocturnal-surface-lowest/40 border-nocturnal-border/30 text-nocturnal-muted hover:bg-nocturnal-surface/30'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span>{reason}</span>
+                            {reportReason === reason && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Comments Box */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-sans font-bold uppercase tracking-wider text-nocturnal-outline">
+                      Additional Details (Optional)
+                    </label>
+                    <textarea
+                      value={reportComments}
+                      onChange={(e) => setReportComments(e.target.value)}
+                      placeholder="Please describe exactly what is inappropriate or inaccurate about this listing..."
+                      className="w-full h-20 px-3 py-2 text-xs font-sans text-on-surface bg-nocturnal-surface-lowest border border-nocturnal-border/40 rounded-xl focus:border-rose-500/40 focus:outline-none resize-none placeholder:text-nocturnal-outline/55"
+                    />
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      disabled={isSubmittingReport}
+                      onClick={() => {
+                        setIsReportDialogOpen(false);
+                        setReportComments('');
+                      }}
+                      className="flex-1 h-9 bg-nocturnal-surface-high hover:bg-nocturnal-surface text-on-surface text-xs font-sans font-bold rounded-lg border border-nocturnal-border/40 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingReport}
+                      className="flex-1 h-9 bg-rose-600 hover:bg-rose-500 text-white text-xs font-sans font-bold rounded-lg shadow-md shadow-rose-600/10 transition-colors cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      {isSubmittingReport ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Submitting...</span>
+                        </>
+                      ) : (
+                        <span>Submit Report</span>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="py-6 flex flex-col items-center text-center space-y-4">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400">
+                    <Check className="w-6 h-6 stroke-[3]" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h3 className="font-serif text-sm font-bold text-on-surface">
+                      Report Submitted Successfully
+                    </h3>
+                    <p className="text-[10px] font-sans text-nocturnal-outline max-w-[260px] mx-auto leading-relaxed">
+                      Thank you for helping keep BookLoop safe. Our administrators have been notified and will investigate the listing immediately.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsReportDialogOpen(false);
+                      setReportSubmitted(false);
+                      setReportComments('');
+                    }}
+                    className="h-9 px-6 bg-primary-lavender hover:bg-violet-400 text-xs font-sans font-bold text-white rounded-lg transition-colors cursor-pointer mt-2"
+                  >
+                    Close Dialog
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
