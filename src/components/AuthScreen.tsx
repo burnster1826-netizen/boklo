@@ -5,7 +5,8 @@ import { MapPin, Shield, Compass, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { triggerGreetingEmail } from '../lib/emailService';
 
 const POPULAR_INDIAN_LOCALITIES = [
   "Indiranagar, Bengaluru",
@@ -193,6 +194,26 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     try {
       const userCred = await signInWithPopup(auth, provider);
       const user = userCred.user;
+
+      // Check blocklist before proceeding with login or signup database changes
+      const blockDocRef = doc(db, 'blocklist', user.uid);
+      const blockDoc = await getDoc(blockDocRef);
+      let isBlocked = blockDoc.exists();
+
+      if (!isBlocked && user.email) {
+        const q = query(collection(db, 'blocklist'), where('email', '==', user.email));
+        const querySnap = await getDocs(q);
+        if (!querySnap.empty) {
+          isBlocked = true;
+        }
+      }
+
+      if (isBlocked) {
+        await auth.signOut();
+        setError("Your account has been deleted and blocked by the administrator. Registration and access are permanently restricted with this Google account.");
+        setLoading(false);
+        return;
+      }
       
       const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
@@ -224,6 +245,15 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           likedBookIds: []
         };
         await setDoc(userDocRef, { ...profileData, uid: user.uid });
+        try {
+          await triggerGreetingEmail({
+            recipientId: user.uid,
+            recipientName: profileData.name,
+            recipientEmail: profileData.email
+          });
+        } catch (mailErr) {
+          console.error("Failed to send welcome email to new user:", mailErr);
+        }
       }
       onAuthSuccess(profileData);
     } catch (err: any) {

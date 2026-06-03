@@ -21,6 +21,7 @@ export default function App() {
   const [chats, setChats] = useState<ChatSession[]>([]);
   const [messagesMap, setMessagesMap] = useState<Record<string, Message[]>>({});
   const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [blocklistedUsers, setBlocklistedUsers] = useState<any[]>([]);
   const [authInitializing, setAuthInitializing] = useState(true);
   const [emailLogs, setEmailLogs] = useState<EmailNotification[]>([]);
 
@@ -104,54 +105,11 @@ export default function App() {
         // 3. Subscribe to Chats matching participant UIDs
         const chatsQuery = query(collection(db, 'chats'), where('participantIds', 'array-contains', user.uid));
         unsubChats = onSnapshot(chatsQuery, async (snap) => {
-          if (snap.empty) {
-            try {
-              const seedStatusRef = doc(db, 'chats_seeded', user.uid);
-              const seedStatusSnap = await getDoc(seedStatusRef);
-              if (seedStatusSnap.exists() && seedStatusSnap.data()?.seeded) {
-                // Chats were already seeded and the user deleted them all. Keep it empty.
-                setChats([]);
-                return;
-              }
-
-              // Update the seed status document first to mark as seeded: true
-              await setDoc(seedStatusRef, { seeded: true });
-
-              INITIAL_CHATS.forEach(async (chat) => {
-                const uniqueChatId = `${user.uid}_${chat.id}`;
-                const seedChat = {
-                  id: uniqueChatId,
-                  participantIds: [user.uid, chat.participant.id],
-                  participant: chat.participant,
-                  book: chat.book
-                };
-                await setDoc(doc(db, 'chats', uniqueChatId), seedChat);
-
-                // Seed messages subcollection for this chat
-                for (const msg of chat.messages) {
-                  const seedMsg = {
-                    id: msg.id,
-                    senderId: msg.sender === 'me' ? user.uid : chat.participant.id,
-                    text: msg.text,
-                    timestamp: msg.timestamp,
-                    createdAt: new Date(Date.now() - 100000).toISOString(),
-                    isMeetingPoint: msg.isMeetingPoint || false,
-                    meetingLocation: msg.meetingLocation || "",
-                    status: 'read'
-                  };
-                  await setDoc(doc(db, 'chats', uniqueChatId, 'messages', msg.id), seedMsg);
-                }
-              });
-            } catch (err) {
-              console.error("Error checking or seeding chats:", err);
-            }
-          } else {
-            const chatsList: ChatSession[] = [];
-            snap.forEach((d) => {
-              chatsList.push({ id: d.id, ...d.data() } as any);
-            });
-            setChats(chatsList);
-          }
+          const chatsList: ChatSession[] = [];
+          snap.forEach((d) => {
+            chatsList.push({ id: d.id, ...d.data() } as any);
+          });
+          setChats(chatsList);
         }, (error) => {
           if (auth.currentUser) {
             handleFirestoreError(error, OperationType.LIST, 'chats');
@@ -229,6 +187,26 @@ export default function App() {
     });
 
     return () => unsubUsers();
+  }, [currentUser]);
+
+  // Admin-only blocklisted user profiles subscription
+  useEffect(() => {
+    if (!currentUser || currentUser.email !== 'burnster1826@gmail.com') {
+      setBlocklistedUsers([]);
+      return;
+    }
+
+    const unsubBlocklist = onSnapshot(collection(db, 'blocklist'), (snap) => {
+      const blocklist: any[] = [];
+      snap.forEach((docSnap) => {
+        blocklist.push({ uid: docSnap.id, ...docSnap.data() });
+      });
+      setBlocklistedUsers(blocklist);
+    }, (error) => {
+      console.error("Admin Blocklist fetch error:", error);
+    });
+
+    return () => unsubBlocklist();
   }, [currentUser]);
 
   // Real-time email notifications listener
@@ -359,6 +337,23 @@ export default function App() {
   const handleDeleteUser = async (uid: string) => {
     if (!currentUser || !auth.currentUser || currentUser.email !== 'burnster1826@gmail.com') return;
     try {
+      // Find user details first from local state
+      const targetUser = allUsers.find(u => u.uid === uid);
+      if (targetUser) {
+        // Save to 'blocklist' collection
+        await setDoc(doc(db, 'blocklist', uid), {
+          uid: targetUser.uid || uid,
+          name: targetUser.name || 'Anonymous Reader',
+          email: targetUser.email || '',
+          avatar: targetUser.avatar || '',
+          location: targetUser.location || '',
+          isTrusted: targetUser.isTrusted || false,
+          swaps: targetUser.swaps || 0,
+          rating: targetUser.rating || 5,
+          deletedAt: new Date().toISOString()
+        });
+      }
+
       // 1. Delete user doc
       await deleteDoc(doc(db, 'users', uid));
       
@@ -369,6 +364,38 @@ export default function App() {
       }
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `users/${uid}`);
+    }
+  };
+
+  const handleUnblockUser = async (uid: string, userDetails: any) => {
+    if (!currentUser || !auth.currentUser || currentUser.email !== 'burnster1826@gmail.com') return;
+    try {
+      // 1. Restore user back into the users collection
+      await setDoc(doc(db, 'users', uid), {
+        uid: uid,
+        name: userDetails.name || 'Restored User',
+        email: userDetails.email || '',
+        avatar: userDetails.avatar || '',
+        location: userDetails.location || '',
+        isTrusted: userDetails.isTrusted || false,
+        swaps: userDetails.swaps || 0,
+        rating: userDetails.rating || 5,
+        likedBookIds: userDetails.likedBookIds || []
+      });
+
+      // 2. Delete from blocklist
+      await deleteDoc(doc(db, 'blocklist', uid));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `blocklist/${uid}`);
+    }
+  };
+
+  const handleDeleteBlocklistUserPermanently = async (uid: string) => {
+    if (!currentUser || !auth.currentUser || currentUser.email !== 'burnster1826@gmail.com') return;
+    try {
+      await deleteDoc(doc(db, 'blocklist', uid));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `blocklist/${uid}`);
     }
   };
 
@@ -894,8 +921,11 @@ export default function App() {
                     users={allUsers}
                     books={mappedBooks}
                     onDeleteUser={handleDeleteUser}
-                    onDeleteBook={handleDeleteUser && handleUnpublishBook}
+                    onDeleteBook={handleUnpublishBook}
                     onToggleTrustUser={handleToggleTrustUser}
+                    blocklistedUsers={blocklistedUsers}
+                    onUnblockUser={handleUnblockUser}
+                    onDeleteBlocklistUserPermanently={handleDeleteBlocklistUserPermanently}
                   />
                 )}
               </div>

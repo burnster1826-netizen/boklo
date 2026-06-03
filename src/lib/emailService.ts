@@ -67,3 +67,54 @@ export async function triggerEmailNotification(params: {
     return null;
   }
 }
+
+/**
+ * Triggers a welcome/greeting email notification record in Firestore for newly registered users
+ */
+export async function triggerGreetingEmail(params: {
+  recipientId: string;
+  recipientName: string;
+  recipientEmail?: string;
+}) {
+  const notifId = `notif-welcome-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  let emailAddr = params.recipientEmail;
+  if (!emailAddr || !emailAddr.includes('@')) {
+    const formattedName = params.recipientName.toLowerCase().replace(/\s+/g, '.');
+    emailAddr = `${formattedName}@bookloop.in`;
+  }
+
+  const subject = `✨ Welcome to BookLoop, ${params.recipientName}!`;
+  
+  const welcomeMessage = `Hello ${params.recipientName},\n\nWelcome to BookLoop - India's Premier Local Used Book Peer-to-Peer Marketplace! We are absolutely thrilled to have you join our reading community.\n\nBookLoop helps you connect with fellow book lovers in your immediate vicinity, enabling secure and hassle-free used book sales, exchanges, and trades.\n\nHere are a few quick tips to get started:\n• 📚 List a Book: Snap a picture and put your books up for swap, sale, or trade!\n• 🔍 Explore Local: Filter listings nearby and pick them up at convenient local meeting points.\n• 💬 Chat Securely: Haggle, discuss book conditions, and agree on coordinates using our real-time messaging.\n\nHappy reading and loop-trading!\n\nWarmest regards,\nThe BookLoop Team`;
+
+  const notification: EmailNotification = {
+    id: notifId,
+    senderId: 'system',
+    senderName: 'The BookLoop Team',
+    recipientId: params.recipientId,
+    recipientName: params.recipientName,
+    recipientEmail: emailAddr,
+    bookTitle: 'Welcome to BookLoop Community',
+    messageText: welcomeMessage,
+    timestamp: new Date().toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }),
+    status: 'Delivered',
+    subject
+  };
+
+  try {
+    await setDoc(doc(db, 'email_notifications', notifId), notification);
+    console.log(`Welcome email successfully dispatched to Firestore: ${notifId}`);
+    return notification;
+  } catch (error) {
+    console.error("Failed to dispatch welcome email: ", error);
+    return null;
+  }
+}
+

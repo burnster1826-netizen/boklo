@@ -15,7 +15,8 @@ import {
   X,
   Sparkles,
   ShieldAlert,
-  ShieldCheck
+  ShieldCheck,
+  RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -26,6 +27,9 @@ interface AdminScreenProps {
   onDeleteUser: (uid: string) => Promise<void>;
   onDeleteBook: (bookId: string) => Promise<void>;
   onToggleTrustUser: (uid: string, currentStatus: boolean) => Promise<void>;
+  blocklistedUsers: any[];
+  onUnblockUser: (uid: string, userDetails: any) => Promise<void>;
+  onDeleteBlocklistUserPermanently: (uid: string) => Promise<void>;
 }
 
 export default function AdminScreen({
@@ -34,14 +38,20 @@ export default function AdminScreen({
   books,
   onDeleteUser,
   onDeleteBook,
-  onToggleTrustUser
+  onToggleTrustUser,
+  blocklistedUsers,
+  onUnblockUser,
+  onDeleteBlocklistUserPermanently
 }: AdminScreenProps) {
-  const [activeAdminTab, setActiveAdminTab] = useState<'users' | 'books'>('users');
+  const [activeAdminTab, setActiveAdminTab] = useState<'users' | 'books' | 'blocklist'>('users');
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [bookSearchTerm, setBookSearchTerm] = useState('');
+  const [blocklistSearchTerm, setBlocklistSearchTerm] = useState('');
   const [isActionLoading, setIsActionLoading] = useState<string | null>(null);
   const [confirmingDeleteUserUid, setConfirmingDeleteUserUid] = useState<string | null>(null);
   const [confirmingDeleteBookId, setConfirmingDeleteBookId] = useState<string | null>(null);
+  const [confirmingUnblockUserUid, setConfirmingUnblockUserUid] = useState<string | null>(null);
+  const [confirmingPermanentDeleteUid, setConfirmingPermanentDeleteUid] = useState<string | null>(null);
 
   // Filter users
   const filteredUsers = users.filter(u => {
@@ -60,6 +70,15 @@ export default function AdminScreen({
     const categoryMatch = (b.category || '').toLowerCase().includes(term);
     const sellerMatch = (b.seller?.name || '').toLowerCase().includes(term);
     return titleMatch || authorMatch || categoryMatch || sellerMatch;
+  });
+
+  // Filter blocklist
+  const filteredBlocklist = (blocklistedUsers || []).filter(u => {
+    const term = blocklistSearchTerm.toLowerCase();
+    const nameMatch = (u.name || '').toLowerCase().includes(term);
+    const emailMatch = (u.email || '').toLowerCase().includes(term);
+    const locationMatch = (u.location || '').toLowerCase().includes(term);
+    return nameMatch || emailMatch || locationMatch;
   });
 
   const handleAction = async (actionId: string, actionFn: () => Promise<void>) => {
@@ -99,7 +118,7 @@ export default function AdminScreen({
             </p>
           </div>
 
-          <div className="flex gap-4 shrink-0">
+          <div className="flex gap-4 shrink-0 overflow-x-auto no-scrollbar">
             <div className="bg-nocturnal-surface-high/60 border border-nocturnal-border/40 px-4 py-3 rounded-xl text-center min-w-[90px]">
               <p className="text-xl font-bold text-primary-lavender font-serif">{users.length}</p>
               <p className="text-[9px] text-nocturnal-outline uppercase tracking-wider font-sans mt-0.5">Total Users</p>
@@ -108,16 +127,20 @@ export default function AdminScreen({
               <p className="text-xl font-bold text-primary-lavender font-serif">{books.length}</p>
               <p className="text-[9px] text-nocturnal-outline uppercase tracking-wider font-sans mt-0.5">Active Listings</p>
             </div>
+            <div className="bg-nocturnal-surface-high/60 border border-nocturnal-border/40 px-4 py-3 rounded-xl text-center min-w-[90px]">
+              <p className="text-xl font-bold text-rose-400 font-serif">{blocklistedUsers?.length || 0}</p>
+              <p className="text-[9px] text-nocturnal-outline uppercase tracking-wider font-sans mt-0.5">Blocklist</p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Screen Tabs Selector */}
-      <div className="flex border-b border-nocturnal-border/20 gap-2 pb-px">
+      <div className="flex border-b border-nocturnal-border/20 gap-2 pb-px overflow-x-auto no-scrollbar">
         <button
           type="button"
           onClick={() => setActiveAdminTab('users')}
-          className={`pb-3 px-4 font-sans text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+          className={`pb-3 px-4 font-sans text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 shrink-0 ${
             activeAdminTab === 'users'
               ? 'border-primary-lavender text-primary-lavender'
               : 'border-transparent text-nocturnal-outline hover:text-on-surface'
@@ -130,7 +153,7 @@ export default function AdminScreen({
         <button
           type="button"
           onClick={() => setActiveAdminTab('books')}
-          className={`pb-3 px-4 font-sans text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+          className={`pb-3 px-4 font-sans text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 shrink-0 ${
             activeAdminTab === 'books'
               ? 'border-primary-lavender text-primary-lavender'
               : 'border-transparent text-nocturnal-outline hover:text-on-surface'
@@ -139,12 +162,25 @@ export default function AdminScreen({
           <BookOpen className="w-4 h-4" />
           <span>Manage Book Listings ({filteredBooks.length})</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveAdminTab('blocklist')}
+          className={`pb-3 px-4 font-sans text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 shrink-0 ${
+            activeAdminTab === 'blocklist'
+              ? 'border-rose-500 text-rose-400'
+              : 'border-transparent text-nocturnal-outline hover:text-rose-400/80'
+          }`}
+        >
+          <UserX className="w-4 h-4" />
+          <span>Blocklist Directory ({filteredBlocklist.length})</span>
+        </button>
       </div>
 
       {/* Admin Content Panels */}
       <div>
         <AnimatePresence mode="wait">
-          {activeAdminTab === 'users' ? (
+          {activeAdminTab === 'users' && (
             <motion.div
               key="users-panel"
               initial={{ opacity: 0, y: 10 }}
@@ -293,7 +329,9 @@ export default function AdminScreen({
                 </div>
               )}
             </motion.div>
-          ) : (
+          )}
+
+          {activeAdminTab === 'books' && (
             <motion.div
               key="books-panel"
               initial={{ opacity: 0, y: 10 }}
@@ -392,6 +430,148 @@ export default function AdminScreen({
                                 type="button"
                                 onClick={() => setConfirmingDeleteBookId(null)}
                                 className="px-2 py-0.5 bg-nocturnal-surface border border-nocturnal-border text-nocturnal-outline font-sans text-[9px] font-bold uppercase rounded cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {activeAdminTab === 'blocklist' && (
+            <motion.div
+              key="blocklist-panel"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.15 }}
+              className="space-y-4"
+            >
+              {/* Filter controls */}
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-nocturnal-outline" />
+                <input
+                  type="text"
+                  placeholder="Search blocklisted accounts by name, email, or region..."
+                  value={blocklistSearchTerm}
+                  onChange={(e) => setBlocklistSearchTerm(e.target.value)}
+                  className="w-full bg-nocturnal-surface-low border border-nocturnal-border rounded-xl pl-10 pr-4 h-11 text-xs font-sans text-on-surface focus:outline-none focus:border-rose-500 hover:border-nocturnal-border-high transition-colors"
+                />
+              </div>
+
+              {/* Blocklisted accounts grid */}
+              {filteredBlocklist.length === 0 ? (
+                <div className="py-12 text-center text-nocturnal-outline border border-dashed border-nocturnal-border rounded-2xl flex flex-col items-center justify-center gap-2">
+                  <UserX className="w-8 h-8 text-rose-500/40" />
+                  <p className="text-xs font-medium">No accounts in the blocklist.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredBlocklist.map((u) => {
+                    const actionId = `block-${u.uid}`;
+                    const isLoading = isActionLoading === actionId;
+
+                    return (
+                      <div 
+                        key={u.uid} 
+                        className="bg-nocturnal-surface-low border border-nocturnal-border hover:border-rose-950/20 rounded-xl p-5 flex flex-col justify-between gap-4 transition-all"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex gap-3">
+                            <img
+                              src={u.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200"}
+                              alt={u.name}
+                              className="w-12 h-12 rounded-full object-cover border border-rose-500/20 grayscale shrink-0"
+                            />
+                            <div className="space-y-0.5">
+                              <h4 className="font-serif text-sm font-bold text-rose-300 flex items-center gap-1.5">
+                                {u.name}
+                                <span className="text-[9px] font-sans px-1.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/25 rounded uppercase font-bold tracking-wider">
+                                  BLOCKED
+                                </span>
+                              </h4>
+                              <p className="text-[11px] text-nocturnal-outline font-sans truncate max-w-[180px] sm:max-w-xs">{u.email || "No email"}</p>
+                              {u.deletedAt && (
+                                <p className="text-[9px] text-rose-400/60 font-sans">
+                                  Blocked on: {new Date(u.deletedAt).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Restoration and Permanent Deletion triggers */}
+                        <div className="flex items-center justify-end gap-2 pt-3 border-t border-nocturnal-border/20">
+                          {confirmingUnblockUserUid !== u.uid ? (
+                            <button
+                              type="button"
+                              disabled={isLoading}
+                              onClick={() => setConfirmingUnblockUserUid(u.uid)}
+                              className="px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-sans text-[10px] font-bold tracking-wide uppercase transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>Restore Account</span>
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                disabled={isLoading}
+                                onClick={() => {
+                                  handleAction(actionId, async () => {
+                                    await onUnblockUser(u.uid, u);
+                                    setConfirmingUnblockUserUid(null);
+                                  });
+                                }}
+                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-sans text-[9px] font-bold uppercase rounded-lg cursor-pointer"
+                              >
+                                Confirm Restore
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmingUnblockUserUid(null)}
+                                className="px-2 py-1 bg-nocturnal-surface border border-nocturnal-border text-nocturnal-outline font-sans text-[9px] font-bold uppercase rounded-lg cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )}
+
+                          {confirmingPermanentDeleteUid !== u.uid ? (
+                            <button
+                              type="button"
+                              disabled={isLoading}
+                              onClick={() => setConfirmingPermanentDeleteUid(u.uid)}
+                              className="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/5 hover:bg-red-500/15 text-red-400 font-sans text-[10px] font-bold tracking-wide uppercase transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete Permanently</span>
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                disabled={isLoading}
+                                onClick={() => {
+                                  handleAction(actionId, async () => {
+                                    await onDeleteBlocklistUserPermanently(u.uid);
+                                    setConfirmingPermanentDeleteUid(null);
+                                  });
+                                }}
+                                className="px-2 py-1 bg-rose-700 hover:bg-rose-600 text-white font-sans text-[9px] font-bold uppercase rounded-lg cursor-pointer"
+                              >
+                                Confirm Permanent Delete
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmingPermanentDeleteUid(null)}
+                                className="px-2 py-1 bg-nocturnal-surface border border-nocturnal-border text-nocturnal-outline font-sans text-[9px] font-bold uppercase rounded-lg cursor-pointer"
                               >
                                 Cancel
                               </button>

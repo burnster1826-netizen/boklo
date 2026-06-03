@@ -107,5 +107,16 @@ service cloud.firestore {
          allow delete: if false;
       }
     }
+
+    match /reports/{reportId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /blocklist/{blockId} {
+      allow get: if isAdmin() || (isSignedIn() && (blockId == request.auth.uid || (resource != null && resource.data.email == request.auth.token.email)));
+      allow list: if isAdmin() || (isSignedIn() && resource.data.email == request.auth.token.email);
+      allow write: if isAdmin();
+    }
   }
 }
