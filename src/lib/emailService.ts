@@ -69,12 +69,14 @@ export async function triggerEmailNotification(params: {
 }
 
 /**
- * Triggers a welcome/greeting email notification record in Firestore for newly registered users
+ * Triggers a welcome/greeting email notification record in Firestore for newly registered users,
+ * and if an OAuth accessToken is provided, sends the actual email using the Gmail REST API.
  */
 export async function triggerGreetingEmail(params: {
   recipientId: string;
   recipientName: string;
   recipientEmail?: string;
+  accessToken?: string;
 }) {
   const notifId = `notif-welcome-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
@@ -111,6 +113,48 @@ export async function triggerGreetingEmail(params: {
   try {
     await setDoc(doc(db, 'email_notifications', notifId), notification);
     console.log(`Welcome email successfully dispatched to Firestore: ${notifId}`);
+
+    // If OAuth accessToken is provided, use Gmail API to send the actual email
+    if (params.accessToken && emailAddr && emailAddr.includes('@') && !emailAddr.endsWith('@bookloop.in')) {
+      try {
+        const emailParts = [
+          `To: ${emailAddr}`,
+          `Subject: ${subject}`,
+          'Content-Type: text/plain; charset="utf-8"',
+          'MIME-Version: 1.0',
+          '',
+          welcomeMessage
+        ];
+        const emailRaw = emailParts.join('\r\n');
+        
+        // UTF-8 safe base64url encoding
+        const encodedMail = btoa(unescape(encodeURIComponent(emailRaw)))
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/, '');
+
+        const gapiResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${params.accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            raw: encodedMail
+          })
+        });
+
+        if (gapiResponse.ok) {
+          console.log(`Welcome email successfully sent to ${emailAddr} via Gmail API.`);
+        } else {
+          const errText = await gapiResponse.text();
+          console.error("Gmail API send failed:", errText);
+        }
+      } catch (gapiErr) {
+        console.error("Error dispatching email via Gmail REST API:", gapiErr);
+      }
+    }
+
     return notification;
   } catch (error) {
     console.error("Failed to dispatch welcome email: ", error);

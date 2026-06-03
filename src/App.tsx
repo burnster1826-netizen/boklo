@@ -85,8 +85,12 @@ export default function App() {
                   sellerId: 'system_seed'
                 });
               });
-            } catch (err) {
-              console.error("Error reading or setting seed status:", err);
+            } catch (err: any) {
+              if (err?.message?.includes('offline') || err?.code === 'unavailable') {
+                console.warn("Firestore is offline or connecting. Seed check deferred until connection is established.");
+              } else {
+                console.error("Error reading or setting seed status:", err);
+              }
             }
           } else {
             const booksList: Book[] = [];

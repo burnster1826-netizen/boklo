@@ -82,6 +82,10 @@
     "chats/{chatId}/messages/{messageId}": {
       "schema": "Message",
       "description": "Real-time individual message records within a chat session"
+    },
+    "blocklist/{blockId}": {
+      "schema": "User",
+      "description": "Collection of blocklisted user accounts whose re-registration has been restricted"
     }
   }
 }

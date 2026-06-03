@@ -191,9 +191,14 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       : selectedLoc;
 
     const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/gmail.send');
     try {
       const userCred = await signInWithPopup(auth, provider);
       const user = userCred.user;
+
+      // Extract OAuth credential/accessToken for Gmail API
+      const credential = GoogleAuthProvider.credentialFromResult(userCred);
+      const accessToken = credential?.accessToken || undefined;
 
       // Check blocklist before proceeding with login or signup database changes
       const blockDocRef = doc(db, 'blocklist', user.uid);
@@ -249,7 +254,8 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           await triggerGreetingEmail({
             recipientId: user.uid,
             recipientName: profileData.name,
-            recipientEmail: profileData.email
+            recipientEmail: profileData.email,
+            accessToken: accessToken
           });
         } catch (mailErr) {
           console.error("Failed to send welcome email to new user:", mailErr);
